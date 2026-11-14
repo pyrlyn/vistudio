@@ -113,19 +113,8 @@ namespace Vistudio.Zig
 
         internal static bool IsZig(Uri uri) => ZigCommandFactory.IsZigFile(uri.IsFile ? uri.LocalPath : uri.ToString());
 
-        internal static IReadOnlyList<string> Identifiers(IReadOnlyList<ZigDeclaration> functions)
-        {
-            var result = new string[functions.Count];
-            var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (var i = 0; i < functions.Count; i++)
-            {
-                var id = Prefix + functions[i].QualifiedName;
-                ordinals.TryGetValue(id, out var ordinal);
-                ordinals[id] = ordinal + 1;
-                result[i] = ordinal == 0 ? id : id + "#" + ordinal;
-            }
-            return result;
-        }
+        internal static IReadOnlyList<string> Identifiers(IReadOnlyList<ZigDeclaration> functions) =>
+            CodeLensElement.WithOrdinals(functions.Select(f => Prefix + f.QualifiedName));
 
         internal static bool IsOurs(CodeElement element) => element.UniqueIdentifier?.StartsWith(Prefix, StringComparison.Ordinal) == true;
 
@@ -160,13 +149,13 @@ namespace Vistudio.Zig
     }
 
     /// <summary>"N references" from ZLS; a click runs Find All References at the function name.</summary>
-    internal sealed class ZigReferencesCodeLens : InvokableCodeLens
+    internal sealed class ZigReferencesCodeLens : InvokableCodeLens, IRefreshableLens
     {
         internal ZigReferencesCodeLens() => ZigCodeLensRefresh.Register(this);
 
         public override async Task<CodeLensLabel> GetLabelAsync(CodeElementContext codeElementContext, CancellationToken token)
         {
-            var position = ZigLensPosition.Of(codeElementContext.Range);
+            var position = LensPosition.Of(codeElementContext.Range);
             var client = await ZigLensServices.ClientAsync();
             if (string.IsNullOrWhiteSpace(ZigSettings.Load().LanguageServerPath))
                 return new CodeLensLabel { Text = "- references", Tooltip = "Set Tools > Options > Zig > ZLS path to count references." };
@@ -193,9 +182,9 @@ namespace Vistudio.Zig
         }
 
         public override Task ExecuteAsync(CodeElementContext codeElementContext, IClientContext clientContext, CancellationToken cancelToken) =>
-            ZigLensServices.ExecuteAtAsync(ZigLensPosition.Of(codeElementContext.Range), "Edit.FindAllReferences", cancelToken);
+            LensCommands.ExecuteAtAsync(LensPosition.Of(codeElementContext.Range), "Edit.FindAllReferences", cancelToken);
 
-        internal void Refresh() => Invalidate();
+        public void Refresh() => Invalidate();
 
         public override void Dispose() => ZigCodeLensRefresh.Unregister(this);
     }
@@ -223,32 +212,9 @@ namespace Vistudio.Zig
             var text = range.Document.Text.CopyToString();
             int nameStart = ZigCodeElement.Declaration(range)?.NameStart ?? range.Start;
             var (line, character) = CodeLensElement.NamePosition(text, nameStart, nameStart + 1);
-            var path = ZigLensPosition.Of(range).Path;
+            var path = LensPosition.Of(range).Path;
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
             ZigNavigation.Open(ServiceProvider.GlobalProvider, path, line, character);
-        }
-    }
-
-    internal readonly struct ZigLensPosition
-    {
-        private ZigLensPosition(string path, string uri, int line, int character)
-        { Path = path; Uri = uri; Line = line; Character = character; }
-        internal string Path { get; }
-        internal string Uri { get; }
-        /// <summary>0-based line and UTF-16 character of the name's last character (inside <c>@"..."</c> quotes).</summary>
-        internal int Line { get; }
-        internal int Character { get; }
-
-        internal static ZigLensPosition Of(TextRange range)
-        {
-            var document = range.Document;
-            var text = document.Text.CopyToString();
-            int start = range.Start, end = range.End;
-            if (end > start + 1 && end <= text.Length && text[end - 1] == '"') end--; // @"quoted name"
-            var (line, character) = CodeLensElement.NamePosition(text, start, end);
-            var path = document.Uri.IsFile ? document.Uri.LocalPath : document.Uri.ToString();
-            var uri = document.Uri.IsFile ? new Uri(path).AbsoluteUri : document.Uri.ToString();
-            return new ZigLensPosition(path, uri, line, character);
         }
     }
 
@@ -259,86 +225,25 @@ namespace Vistudio.Zig
             var model = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<SComponentModel, IComponentModel>();
             return model.GetService<ZigLanguageClient>();
         }
-
-        /// <summary>Puts the caret on the function name and runs a Visual Studio command there (ZLS answers it).</summary>
-        internal static async Task ExecuteAtAsync(ZigLensPosition position, string command, CancellationToken token)
-        {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
-            VsShellUtilities.OpenDocument(ServiceProvider.GlobalProvider, position.Path, Guid.Empty, out _, out _, out var frame, out IVsTextView view);
-            frame?.Show();
-            if (view == null) return;
-            view.SetCaretPos(position.Line, position.Character);
-            view.SendExplicitFocus();
-            var dte = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<EnvDTE.DTE, EnvDTE.DTE>();
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
-            dte.ExecuteCommand(command);
-        }
     }
 
     /// <summary>Reference counts are workspace-wide: refreshed after edits (debounced) and when ZLS becomes ready.</summary>
     internal static class ZigCodeLensRefresh
     {
-        private static readonly object Gate = new object();
-        private static readonly HashSet<ZigReferencesCodeLens> Lenses = new HashSet<ZigReferencesCodeLens>();
-        private static CancellationTokenSource? pending;
-        private static bool waiting;
+        private static readonly LensRefresh Lenses = new LensRefresh();
 
-        internal static void Register(ZigReferencesCodeLens lens) { lock (Gate) Lenses.Add(lens); }
-        internal static void Unregister(ZigReferencesCodeLens lens) { lock (Gate) Lenses.Remove(lens); }
-
-        internal static void Schedule(int delayMilliseconds = 1500)
-        {
-            CancellationTokenSource source;
-            lock (Gate) { pending?.Cancel(); pending = source = new CancellationTokenSource(); }
-            _ = Task.Run(async () =>
-            {
-                try { await Task.Delay(delayMilliseconds, source.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) { return; }
-                InvalidateAll();
-            });
-        }
+        internal static void Register(ZigReferencesCodeLens lens) => Lenses.Register(lens);
+        internal static void Unregister(ZigReferencesCodeLens lens) => Lenses.Unregister(lens);
+        internal static void Schedule(int delayMilliseconds = 1500) => Lenses.Schedule(delayMilliseconds);
 
         /// <summary>
         /// After ZLS reports "Loaded build file", references of a declaration start to include importing files a few
         /// seconds later (about 5.6 s for samples/zig-hello with ZLS 0.16.0), so the counts are asked again in steps.
         /// </summary>
-        internal static void AfterBuildLoaded()
-        {
-            foreach (var seconds in new[] { 1, 3, 6, 10, 20 })
-            {
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(seconds)).ConfigureAwait(false);
-                    InvalidateAll();
-                });
-            }
-        }
+        internal static void AfterBuildLoaded() => Lenses.InSteps(new[] { 1, 3, 6, 10, 20 });
 
-        internal static void WaitForServer()
-        {
-            lock (Gate) { if (waiting) return; waiting = true; }
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var client = await ZigLensServices.ClientAsync().ConfigureAwait(false);
-                    for (var i = 0; i < 600 && !client.IsServerReady; i++) await Task.Delay(1000).ConfigureAwait(false);
-                }
-                catch (Exception) { }
-                finally { lock (Gate) waiting = false; }
-                InvalidateAll();
-            });
-        }
+        internal static void WaitForServer() => Lenses.WaitForServer(async () => await ZigLensServices.ClientAsync().ConfigureAwait(false));
 
-        internal static void InvalidateAll()
-        {
-            ZigReferencesCodeLens[] current;
-            lock (Gate) current = Lenses.ToArray();
-            foreach (var lens in current)
-            {
-                try { lens.Refresh(); }
-                catch (ObjectDisposedException) { Unregister(lens); }
-            }
-        }
+        internal static void InvalidateAll() => Lenses.InvalidateAll();
     }
 }

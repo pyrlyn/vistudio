@@ -1,0 +1,20 @@
+[$RootKey$\AD7Metrics\Engine\{c4a2e6f8-1b3d-4a5c-9e7f-0d2b4c6e8a17}]
+"Name"="Dart / Flutter"
+"CLSID"="{DAB324E9-7B35-454C-ACA8-F6BB0D5C8673}"
+"AlwaysLoadLocal"=dword:00000001
+"AddressBP"=dword:00000000
+"CallstackBP"=dword:00000000
+"Attach"=dword:00000000
+"Language"="Dart"
+"LanguageId"="{9b3e5c71-4d2a-4f6b-8e1c-3a5d7f9b1c24}"
+"LocalsScopeName"="Locals"
+"AdapterLauncher"="{3d6f8a12-7b4c-4e59-9f0a-2c8e1b5d7a63}"
+
+[$RootKey$\AD7Metrics\Engine\{c4a2e6f8-1b3d-4a5c-9e7f-0d2b4c6e8a17}\LanguageMappings\Dart]
+"LanguageId"="{9b3e5c71-4d2a-4f6b-8e1c-3a5d7f9b1c24}"
+"Extensions"="*"
+
+[$RootKey$\CLSID\{3d6f8a12-7b4c-4e59-9f0a-2c8e1b5d7a63}]
+"Assembly"="Vistudio.Vsix"
+"Class"="Vistudio.Dart.DartAdapterLauncher"
+"CodeBase"="$PackageFolder$\Vistudio.Vsix.dll"

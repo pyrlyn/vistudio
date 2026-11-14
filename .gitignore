@@ -9,3 +9,4 @@ artifacts/
 samples/**/build/
 **/zig-out/
 **/.zig-cache/
+**/.dart_tool/

@@ -1,0 +1,12 @@
+; Theme colors for the inlay hints of Visual Studio's LSP client (Fonts and Colors > Inlay Hints - Types / Inlay Hints - Parameters).
+; Visual Studio 18 files its Dark entries for these items under the Output Window category, so Kotlin and Java editors
+; fall back to the light defaults (#686868 on #E6E6E6). These keys add them to the editor's category
+; (Text Editor MEF Items, {75a05685-00a8-4ded-bae5-e7a50bfa929a}) with the values Visual Studio meant for Dark, which
+; also match C# and C++ inline hints. Dark-based themes fall back to Dark; Dark (Extra Contrast) gets its own inlay hint colors.
+; Blob: int32 length, int32 version 11, int32 category count, category GUID, int32 item count, then per item an
+; int32-prefixed UTF-8 name and background/foreground as type 1 (raw) + R,G,B,A. Checked by InlayHintTests.ThemeColors.
+[$RootKey$\Themes\{1ded0138-47ce-435e-84ef-9ec1f439b749}\Vistudio Text Editor MEF Items]
+"Data"=hex:61,00,00,00,0b,00,00,00,01,00,00,00,85,56,a0,75,a8,00,ed,4d,ba,e5,e7,a5,0b,fa,92,9a,02,00,00,00,10,00,00,00,69,6e,6c,61,79,20,68,69,6e,74,73,20,74,79,70,65,01,3e,3e,3e,ff,01,a9,a8,a7,ff,15,00,00,00,69,6e,6c,61,79,20,68,69,6e,74,73,20,70,61,72,61,6d,65,74,65,72,01,3e,3e,3e,ff,01,a9,a8,a7,ff
+
+[$RootKey$\Themes\{c080e494-8a3f-417f-b846-46155da10c08}\Vistudio Text Editor MEF Items]
+"Data"=hex:61,00,00,00,0b,00,00,00,01,00,00,00,85,56,a0,75,a8,00,ed,4d,ba,e5,e7,a5,0b,fa,92,9a,02,00,00,00,10,00,00,00,69,6e,6c,61,79,20,68,69,6e,74,73,20,74,79,70,65,01,33,33,33,ff,01,c7,c7,c7,ff,15,00,00,00,69,6e,6c,61,79,20,68,69,6e,74,73,20,70,61,72,61,6d,65,74,65,72,01,33,33,33,ff,01,c7,c7,c7,ff

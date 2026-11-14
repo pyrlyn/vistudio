@@ -1,0 +1,15 @@
+<Image xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="16" Height="16">
+  <Image.Source>
+    <DrawingImage>
+      <DrawingImage.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="Transparent" Geometry="M0,0 H16 V16 H0 Z" />
+          <GeometryDrawing Brush="#E76F00" Geometry="M3,7 H11 V10 A3,3 0 0 1 8,13 H6 A3,3 0 0 1 3,10 Z" />
+          <GeometryDrawing Geometry="M11,8 H12.4 A1.5,1.5 0 0 1 12.4,11 H11"><GeometryDrawing.Pen><Pen Brush="#E76F00" Thickness="1.2" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" /></GeometryDrawing.Pen></GeometryDrawing>
+          <GeometryDrawing Geometry="M5.5,1.5 C4.5,3 6.5,3.5 5.5,5.2 M8.5,1.5 C7.5,3 9.5,3.5 8.5,5.2"><GeometryDrawing.Pen><Pen Brush="#5382A1" Thickness="1.1" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" /></GeometryDrawing.Pen></GeometryDrawing>
+          <GeometryDrawing Brush="#5382A1" Geometry="M2,14 H12 V15 H2 Z" />
+        </DrawingGroup>
+      </DrawingImage.Drawing>
+    </DrawingImage>
+  </Image.Source>
+</Image>

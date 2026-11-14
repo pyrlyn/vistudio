@@ -16,7 +16,7 @@ namespace Vistudio.Zig
     /// settings change notifications and the toolchain environment (<c>zig env</c>). Independent of the Kotlin parts.
     /// </summary>
     [Export, PartCreationPolicy(CreationPolicy.Shared)]
-    internal sealed class ZigEnvironment
+    internal sealed class ZigEnvironment : ILanguageEnvironment
     {
         private static readonly Guid PaneId = new Guid("5f1c4c63-2d6f-4f43-9a0c-3b2d6a9f7e21");
         private readonly IServiceProvider services;

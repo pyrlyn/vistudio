@@ -20,6 +20,68 @@ Kotlin syntax highlighting, external LSP integration, Gradle builds, and JVM deb
 | T48 | in progress | P1 | 4 | 100% | Anthropic / Claude Opus 5.5 |
 | T50 | in progress | P1 | 4 | 85% | Anthropic / Claude Opus 5.5 |
 | T51 | in progress | P1 | 4 | 80% | Anthropic / Claude Opus 5.5 |
+| T52 | in progress | P1 | 3 | 100% | Anthropic / Claude Opus 5.5 |
+| T53 | in progress | P1 | 3 | 100% | Anthropic / Claude Opus 5.5 |
+| T54 | in progress | P1 | 4 | 100% | Anthropic / Claude Opus 5.5 |
+| T55 | in progress | P1 | 5 | 100% | Anthropic / Claude Opus 5.5 |
+| T56 | in progress | P1 | 4 | 100% | Anthropic / Claude Opus 5.5 |
+| T57 | in progress | P2 | 3 | 90% | Anthropic / Claude Opus 5.5 |
+| T58 | in progress | P1 | 2 | 90% | Anthropic / Claude Opus 5.5 |
+| T59 | in progress | P1 | 5 | 70% | Anthropic / Claude Opus 5.5 |
+| T60 | in progress | P1 | 5 | 75% | Anthropic / Claude Opus 5.5 |
+| T61 | in progress | P1 | 5 | 45% | Anthropic / Claude Opus 5.5 |
+| T62 | in progress | P2 | 5 | 35% | Anthropic / Claude Opus 5.5 |
+| T63 | todo | P2 | 4 | 0% | |
+| T64 | todo | P2 | 4 | 0% | |
+| T65 | in progress | P2 | 3 | 40% | Anthropic / Claude Opus 5.5 |
+| T66 | in progress | P2 | 4 | 50% | Anthropic / Claude Opus 5.5 |
+
+### T58-T66. Eight languages: Dart, Kotlin, Zig, Java, C, C++, Wasm, Rust
+
+Requested by the creator: extend the existing VSIX so that each of the eight languages has file icons, debugging, completion, CodeLens, Error Lens, inline type hints and its own project type with settings, and so that the native Solution Explorer shows each language's own package manager with outdated versions and add / remove / update. Creator decisions (this request): C and C++ build on the built-in Visual C++ support (its IntelliSense, debugger and inline hints stay; Vistudio adds icons, CodeLens, a CMake-based project type and packages); the C/C++ package manager is Conan; "Wasm" means WebAssembly text and binary files (`.wat`, `.wast`, `.wasm`) with the wasm-language-tools server, wasmtime and wkg (wasm-pkg-tools); Java and Kotlin packages are Gradle only (no Maven). The earlier "Open Folder, no project type" decisions for Zig (T44) and Dart (T52) are replaced by this request; Open Folder keeps working.
+
+State before this work, per language (✓ exists, – missing, VS = supplied by Visual Studio):
+
+| | Icons | Debug | Completion | CodeLens | Error Lens | Inline hints | Project type | Packages |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Kotlin | ✓ | ✓ | ✓ | ✓ (T35) | ✓ (T38) | ✓ (T42) | ✓ `.kotlinproj` | tree only |
+| Java | VS | ✓ (T30) | ✓ JDT LS | ✓ (T35) | ✓ | ✓ (T42) | inside `.kotlinproj` | tree only |
+| Dart | – | ✓ (T55) | ✓ (T53) | ✓ (T57) | ✓ | – | – | – |
+| Zig | – | – | ✓ (T45) | ✓ (T47) | ✓ | – | – | – |
+| C / C++ | VS | VS | VS | – | ✓ | VS | VS (`.vcxproj`, CMake) | – |
+| Rust | – | – | – | – | ✓ (any editor) | – | – | – |
+| Wasm | – | – | – | – | ✓ (any editor) | – | – | – |
+
+Agent choices following the existing patterns (change on the creator's word): language servers, debug adapters and package managers are user-installed and found through Tools > Options or PATH, never bundled; Rust, Zig, C and C++ binaries on Windows carry PDBs, so they debug in the native Visual Studio engine (no extra adapter) and `lldb-dap` stays the roadmap choice for DWARF targets (T33); every new project type is an IDE metadata file like `.kotlinproj` (never evaluated by MSBuild) on one shared project system, and each language's own tool keeps building (cargo, zig, dart/flutter, CMake, Gradle, wasm-tools); package data comes from each manager's own output and manifest, with edits through its own commands where it has them.
+
+- T58. Language catalog and file icons. Core `Languages/LanguageCatalog` (id, name, extensions, project extension, manifest names, package manager); vector icons and `ShellFileAssociations` for `.dart`, `.zig`, `.zon`, `.java`, `.c`, `.h`, `.cpp`/`.cc`/`.cxx`/`.hpp`, `.wat`/`.wast`/`.wasm`, `.rs` (Kotlin's stay); the icon rendering check covers every icon. Done when each extension shows its icon in Solution Explorer and document tabs.
+- T59. Shared language project type. One project system (`LanguageProjectFactory`/`LanguageProjectNode`, reusing the lazy tree and reconcile code of `KotlinProjectNode` through a common base) for `.dartproj`, `.zigproj`, `.rustproj`, `.cproj`, `.cppproj`, `.wasmproj` and `.javaproj`: folder tree, a Packages node, Properties-window settings (tool paths, build/run/test commands, arguments, working directory), Build/Run through the language's tool, New Project templates per language. `.kotlinproj` keeps its Gradle model. Done when each type creates, loads, builds and runs in Visual Studio.
+- T60. Package managers in Solution Explorer. Core `Packages/` (model, `IPackageManager`; pub, Cargo, Gradle, Conan, Zig `build.zig.zon`, wkg): declared packages from the manifest, current/compatible/latest versions from the manager's own outdated report, add / remove / update as its own commands or a manifest edit plus its resolve command. VSIX: a Packages node under every project (Dependencies for `.kotlinproj`), an outdated mark and "current → latest" in the caption, context commands Add Package..., Remove, Update, Update All, Check for Updates, output in a "Packages" pane. Done when each manager lists, flags outdated, adds, removes and updates on a real project, with unit checks and live checks against the installed tools.
+- T61. Rust. `rust` content type (Visual Studio ships the grammar), rust-analyzer client (completion, navigation, diagnostics, inlay hints), CodeLens (references, Run | Debug above `main` and tests), `cargo build/run/test` with diagnostics from `--message-format=json`, F5 through the native engine, Tools > Options > Rust.
+- T62. Wasm. `wat` content type and grammar, wasm-language-tools client (completion, diagnostics, inlay hints), CodeLens for functions/exports, run through wasmtime, debugging (probe first: wasmtime guest debugging versus lldb-dap), Tools > Options > Wasm.
+- T63. C and C++. CodeLens for functions/types (references through the Visual C++ language service), the CMake + Conan project type's build and F5 through the native engine, Conan toolchain wiring; the built-in editor features are left untouched.
+- T64. Zig gaps. F5 / Debug lens through the native engine on `zig build` output, ZLS inlay hints, `.zigproj`.
+- T65. Dart gaps. Analysis-server inlay hints, `.dartproj`, Flutter targets in the project settings.
+- T66. Java and Kotlin gaps. Java file icon, `.javaproj` and Java templates on the Gradle project system, Gradle add / remove / update in `build.gradle(.kts)` and version catalogs.
+
+Status: T58 (catalog, icons, associations), T59 (project types, templates, Build/Run/Test/F5 commands, Properties) and T60 (six package managers, Packages nodes for language and Kotlin projects, commands, background checks) are implemented; T61/T62 (Rust and WebAssembly editor support) are implemented without a live server; Dart inline hints are enabled (static registration) and checked live. Results and what is not verified: [docs/language-projects-validation.md](docs/language-projects-validation.md). In Visual Studio (DTE): Dart and C++ templates, trees, Packages nodes, Check for Updates, Update to Latest (pub), solution Build (dart analyze; Conan + CMake) and C++ F5 at a breakpoint. Open: Rust, Zig, WebAssembly and Java projects in the IDE, the Kotlin Gradle Packages node in the IDE, Add/Remove through the IDE, visual checks (screen access declined), T63 (C/C++ CodeLens), T64 (Zig F5 on a real build, ZLS inlay hints are on by default in ZLS 0.16.1 and need an IDE look).
+
+Order: T58, then T59 and T60 (everything else attaches to them), then T61, T64, T65, T66, T63, T62. Checks: unit suites `Vistudio.Tests.exe --packages` / `--languages`, live parts against the tools found on the machine (Conan 2.33.0 and Flutter 3.50.0 are installed; cargo, zig, wkg, wasmtime are not, so their live parts report skipped), then Visual Studio acceptance per task.
+
+### T52-T57. Dart and Flutter
+
+Requested by the creator: Dart language integration in the existing VSIX — Dart in the editor, Dart debugging, the Flutter framework, Flutter run, run with hot reload, Flutter debugging, unit and integration tests, error reporting and CodeLens — with every step verified. Creator decisions (this request): the Flutter SDK is user-installed and configured by folder like ZLS (not bundled; Flutter 3.50.0 was downloaded for testing to a local disk); the Flutter device for run/debug/integration tests is Windows desktop (the Visual Studio C++ workload was added for it); the VSIX manifest also targets ARM64 Visual Studio so the IDE checks can run on this Windows on ARM machine. Implementation choices following the Zig pattern: own package, settings file, Output pane and Error List providers; Dart packages are opened with Open Folder (no project type); the SDK's own analysis server and debug adapters are used (no third-party server).
+
+- T52. Dart files, coloring, settings and SDKs: `dart` content type, `Grammars/Dart.tmLanguage.json`, `DartSettings` (+ `vistudio.dart.*` workspace overrides), `DartToolchain` (Flutter/Dart SDK from settings or PATH, versions from the SDK files), `DartProject` (pubspec root, Flutter detection, entry points, test folders).
+- T53. IntelliSense and error reporting: `DartLanguageClient` (`dart language-server`), analysis server diagnostics in squiggles and the Error List, `DartErrorList` providers "Dart run", "Dart tests", "Dart analyze", `DartDiagnosticParser` (analyze machine format, compiler lines).
+- T54. Run and Flutter hot reload: `DartRunService` (`dart run`, `flutter run --machine`), `FlutterAppSession` (daemon protocol: hot reload, hot restart, stop), hot reload on save (`DartSaveListener`), devices, pub get, analyze, `flutter create`.
+- T55. Dart and Flutter debugging: engine `Registration/DartDebugAdapter.pkgdef`, `DartAdapterLauncher` starting `dart`/`flutter debug_adapter`, `DartDapConnection` (frame passthrough plus Vistudio's own `hotReload`/`hotRestart` requests), `DartDebugCoordinator` and F5/launch.vs.json provider (`type: dart`).
+- T56. Tests: `DartTestService` (`dart test --reporter json`, `flutter test --machine`, `flutter test integration_test -d <device>`), `DartTestRun` (JSON test protocol), test debugging through `debug_adapter --test`.
+- T57. CodeLens: `DartSourceScanner` (masked lexical scan of declarations, `main`, `test`/`testWidgets`/`group` full names), Run/Debug lenses for `main` and tests, reference counts from the analysis server.
+
+Checks: `Vistudio.Tests.exe --dart` (unit, plus live against the SDK) and `tests/verify-dart.ps1` (IDE through DTE). Results: [docs/dart-validation.md](docs/dart-validation.md).
+
+Status: implemented as listed. `--dart` passes 144 assertions (96 unit, 48 live against Flutter 3.50.0 / Dart 3.14.0); `verify-dart.ps1` passes 27 IDE checks for the Dart sample and 25 for the Flutter sample in an ARM64 Visual Studio 18.12 instance (DTE only; screen access was declined). Fixed during validation: Flutter debug sessions left the app running after Stop Debugging (the adapter's process tree is now ended when it exits). Not verified: visual rendering (coloring, squiggles, CodeLens drawing and clicks), IntelliSense UI inside the editor (checked over LSP instead), F5/launch.vs.json, New Flutter App, devices other than Windows, x64 Visual Studio, Release build. T57 stays at 90% until CodeLens is seen and clicked in the IDE.
 
 ### T51. Mise tool versions: detection, install check, inline updates, upgrade all
 

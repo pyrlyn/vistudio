@@ -42,8 +42,16 @@
     <VSCTCompile Include="Zig/ZigCommands.vsct" ResourceName="ZigMenus.ctmenu" />
     <!-- mise commands: own menu resource for MisePackage (T51). -->
     <VSCTCompile Include="Mise/MiseCommands.vsct" ResourceName="MiseMenus.ctmenu" />
+    <!-- Dart and Flutter commands: own menu resource for DartPackage. -->
+    <VSCTCompile Include="Dart/DartCommands.vsct" ResourceName="DartMenus.ctmenu" />
+    <Content Include="Grammars/Dart.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Registration/DartFiles.pkgdef" IncludeInVSIX="true"><Link>DartFiles.pkgdef</Link></Content>
+    <Content Include="Registration/DartDebugAdapter.pkgdef" IncludeInVSIX="true"><Link>DartDebugAdapter.pkgdef</Link></Content>
     <Content Include="Grammars/Zig.tmLanguage.json" IncludeInVSIX="true" />
     <Content Include="Registration/ZigFiles.pkgdef" IncludeInVSIX="true"><Link>ZigFiles.pkgdef</Link></Content>
+    <!-- Rust and WebAssembly text editors (T61, T62): Visual Studio ships the Rust grammar; the WAT grammar is ours. -->
+    <Content Include="Grammars/Wat.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Registration/RustWasmFiles.pkgdef" IncludeInVSIX="true"><Link>RustWasmFiles.pkgdef</Link></Content>
     <None Update="source.extension.vsixmanifest"><SubType>Designer</SubType></None>
     <Content Include="Grammars/Kotlin.tmLanguage.json" IncludeInVSIX="true" />
     <Content Include="Grammars/Properties.tmLanguage.json" IncludeInVSIX="true" />
@@ -52,30 +60,41 @@
     <Content Include="Build/ComposePreview.gradle" IncludeInVSIX="true" />
     <Content Include="Build/VistudioPreviewRenderer.java" IncludeInVSIX="true" />
     <Content Include="Build/JavaKotlinInterop.gradle" IncludeInVSIX="true" />
+    <!-- Newest releases of declared Gradle dependencies for the Packages node (T60). -->
+    <Content Include="Build/OutdatedDependencies.gradle" IncludeInVSIX="true" />
+    <!-- Package nodes of every project type and the language project commands (T59, T60). -->
+    <VSCTCompile Include="Languages/LanguageCommands.vsct" ResourceName="LanguageMenus.ctmenu" />
     <Resource Include="Icons/KotlinFile.xaml" />
     <Resource Include="Icons/KotlinScript.xaml" />
     <Resource Include="Icons/PropertiesFile.xaml" />
     <Content Include="Icons/Kotlin.imagemanifest" IncludeInVSIX="true"><Link>Kotlin.imagemanifest</Link></Content>
+    <!-- File and project icons of the other languages (T58). -->
+    <Resource Include="Icons/DartFile.xaml;Icons/ZigFile.xaml;Icons/ZonFile.xaml;Icons/JavaFile.xaml;Icons/RustFile.xaml;Icons/WatFile.xaml;Icons/WasmFile.xaml;Icons/CProject.xaml;Icons/CppProject.xaml" />
+    <Content Include="Icons/Languages.imagemanifest" IncludeInVSIX="true"><Link>Languages.imagemanifest</Link></Content>
+    <Content Include="Registration/LanguageFiles.pkgdef" IncludeInVSIX="true"><Link>LanguageFiles.pkgdef</Link></Content>
     <Content Include="Registration/KotlinFiles.pkgdef" IncludeInVSIX="true"><Link>KotlinFiles.pkgdef</Link></Content>
     <Content Include="Registration/KotlinGrammar.pkgdef" IncludeInVSIX="true"><Link>KotlinGrammar.pkgdef</Link></Content>
     <Content Include="Registration/KotlinDebugAdapter.pkgdef" IncludeInVSIX="true"><Link>KotlinDebugAdapter.pkgdef</Link></Content>
+    <Content Include="Registration/InlayHintColors.pkgdef" IncludeInVSIX="true"><Link>InlayHintColors.pkgdef</Link></Content>
     <!-- New Project templates: the Gradle wrapper of the validated samples is copied into every generated project. -->
     <Content Include="../../samples/kotlin-jvm/gradlew.bat" IncludeInVSIX="true"><Link>Templates/Wrapper/gradlew.bat</Link></Content>
     <Content Include="../../samples/kotlin-jvm/gradle/wrapper/gradle-wrapper.jar" IncludeInVSIX="true"><Link>Templates/Wrapper/gradle/wrapper/gradle-wrapper.jar</Link></Content>
     <None Remove="Templates/**" />
-    <KotlinProjectTemplate Include="Templates/Projects/*/*.vstemplate" />
+    <ProjectTemplate Include="Templates/Projects/*/*.vstemplate" />
+    <ProjectTemplateFile Include="Templates/Projects/**/*" />
   </ItemGroup>
-  <!-- Each Templates/Projects/<name> folder plus the shared icon becomes ProjectTemplates/<name>.zip in the VSIX. -->
-  <Target Name="ZipKotlinProjectTemplates" BeforeTargets="BeforeBuild" Inputs="@(KotlinProjectTemplate);Templates/Kotlin.png;Templates/Projects/*/vistudio.kotlinproj" Outputs="@(KotlinProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')">
-    <PropertyGroup><KotlinTemplateStaging>$(IntermediateOutputPath)ProjectTemplateStaging/</KotlinTemplateStaging></PropertyGroup>
-    <RemoveDir Directories="$(KotlinTemplateStaging)" />
-    <Copy SourceFiles="%(KotlinProjectTemplate.RootDir)%(KotlinProjectTemplate.Directory)%(KotlinProjectTemplate.Filename).vstemplate;%(KotlinProjectTemplate.RootDir)%(KotlinProjectTemplate.Directory)vistudio.kotlinproj;Templates/Kotlin.png" DestinationFolder="$(KotlinTemplateStaging)%(KotlinProjectTemplate.Filename)" />
+  <!-- Each Templates/Projects/<name> folder (Kotlin and language templates) plus the shared Kotlin icon becomes ProjectTemplates/<name>.zip in the VSIX. -->
+  <Target Name="ZipProjectTemplates" BeforeTargets="BeforeBuild" Inputs="@(ProjectTemplateFile);Templates/Kotlin.png" Outputs="@(ProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')">
+    <PropertyGroup><ProjectTemplateStaging>$(IntermediateOutputPath)ProjectTemplateStaging/</ProjectTemplateStaging></PropertyGroup>
+    <RemoveDir Directories="$(ProjectTemplateStaging)" />
+    <Copy SourceFiles="@(ProjectTemplateFile)" DestinationFiles="@(ProjectTemplateFile->'$(ProjectTemplateStaging)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="Templates/Kotlin.png" DestinationFolder="$(ProjectTemplateStaging)%(ProjectTemplate.Filename)" Condition="Exists('%(ProjectTemplate.RootDir)%(ProjectTemplate.Directory)vistudio.kotlinproj')" />
     <MakeDir Directories="$(IntermediateOutputPath)ProjectTemplates" />
-    <ZipDirectory SourceDirectory="$(KotlinTemplateStaging)%(KotlinProjectTemplate.Filename)" DestinationFile="$(IntermediateOutputPath)ProjectTemplates/%(KotlinProjectTemplate.Filename).zip" Overwrite="true" />
+    <ZipDirectory SourceDirectory="$(ProjectTemplateStaging)%(ProjectTemplate.Filename)" DestinationFile="$(IntermediateOutputPath)ProjectTemplates/%(ProjectTemplate.Filename).zip" Overwrite="true" />
   </Target>
-  <Target Name="IncludeKotlinProjectTemplates" AfterTargets="ZipKotlinProjectTemplates" BeforeTargets="BeforeBuild">
+  <Target Name="IncludeProjectTemplates" AfterTargets="ZipProjectTemplates" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <Content Include="@(KotlinProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')" IncludeInVSIX="true" VSIXSubPath="ProjectTemplates" />
+      <Content Include="@(ProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')" IncludeInVSIX="true" VSIXSubPath="ProjectTemplates" />
     </ItemGroup>
   </Target>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />

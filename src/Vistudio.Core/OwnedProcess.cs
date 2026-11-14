@@ -58,14 +58,18 @@ namespace Vistudio.Core
                 throw new IOException("The owned process could not be stopped. PID: " + process.Id);
         }
 
-        public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onLine, CancellationToken token)
+        public static Task<int> RunAsync(ProcessStartInfo start, Action<string> onLine, CancellationToken token) =>
+            RunAsync(start, onLine, onLine, token);
+
+        /// <summary>Runs to completion with standard output and error kept apart (machine-readable output on one, progress on the other).</summary>
+        public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             using (var owned = new OwnedProcess(start))
             {
                 owned.process.StandardInput.Close();
-                var stdout = PumpAsync(owned.process.StandardOutput, onLine);
-                var stderr = PumpAsync(owned.process.StandardError, onLine);
+                var stdout = PumpAsync(owned.process.StandardOutput, onOutput);
+                var stderr = PumpAsync(owned.process.StandardError, onError);
                 var canceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 using (token.Register(() => canceled.TrySetResult(true)))
                 {

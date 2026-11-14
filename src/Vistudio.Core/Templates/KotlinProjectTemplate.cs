@@ -118,15 +118,7 @@ namespace Vistudio.Core.Templates
             var pkg = options.PackageName;
             files[".gitignore"] = Lines(".gradle/", ".kotlin/", "build/", ".vs/", "*.user");
             files["gradle.properties"] = Lines("kotlin.code.style=official");
-            files["gradle/wrapper/gradle-wrapper.properties"] = Lines(
-                "distributionBase=GRADLE_USER_HOME",
-                "distributionPath=wrapper/dists",
-                @"distributionUrl=https\://services.gradle.org/distributions/gradle-" + GradleVersion + "-bin.zip",
-                "distributionSha256Sum=" + GradleDistributionSha256,
-                "networkTimeout=10000",
-                "validateDistributionUrl=true",
-                "zipStoreBase=GRADLE_USER_HOME",
-                "zipStorePath=wrapper/dists");
+            files["gradle/wrapper/gradle-wrapper.properties"] = WrapperProperties();
             var rootName = "rootProject.name = " + KotlinString(options.ProjectName);
             switch (options.Kind)
             {
@@ -290,21 +282,14 @@ namespace Vistudio.Core.Templates
             var existing = all.Where(f => File.Exists(Path.Combine(folder, f))).ToArray();
             if (existing.Length != 0)
                 throw new IOException("The folder already contains " + string.Join(", ", existing) + ". Choose an empty location for the new Kotlin project: " + folder);
-            foreach (var wrapper in WrapperFiles)
-                if (!File.Exists(Path.Combine(wrapperDirectory, wrapper)))
-                    throw new FileNotFoundException("The Gradle wrapper template is missing: " + Path.Combine(wrapperDirectory, wrapper));
+            CheckWrapper(wrapperDirectory);
             foreach (var file in text)
             {
                 var path = Path.Combine(folder, file.Key);
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(path, file.Value, new UTF8Encoding(false));
             }
-            foreach (var wrapper in WrapperFiles)
-            {
-                var path = Path.Combine(folder, wrapper);
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.Copy(Path.Combine(wrapperDirectory, wrapper), path);
-            }
+            CopyWrapper(folder, wrapperDirectory);
             var project = KotlinProjectFile.Create(folder, new KotlinSettings
             {
                 GradleRoot = ".",
@@ -315,6 +300,36 @@ namespace Vistudio.Core.Templates
             });
             project.Save();
             return project;
+        }
+
+        /// <summary>The wrapper properties of every generated Gradle project (Kotlin and Java templates): the validated Gradle version, checksum-pinned.</summary>
+        public static string WrapperProperties() => Lines(
+            "distributionBase=GRADLE_USER_HOME",
+            "distributionPath=wrapper/dists",
+            @"distributionUrl=https\://services.gradle.org/distributions/gradle-" + GradleVersion + "-bin.zip",
+            "distributionSha256Sum=" + GradleDistributionSha256,
+            "networkTimeout=10000",
+            "validateDistributionUrl=true",
+            "zipStoreBase=GRADLE_USER_HOME",
+            "zipStorePath=wrapper/dists");
+
+        public static void CheckWrapper(string wrapperDirectory)
+        {
+            foreach (var wrapper in WrapperFiles)
+                if (!File.Exists(Path.Combine(wrapperDirectory, wrapper)))
+                    throw new FileNotFoundException("The Gradle wrapper template is missing: " + Path.Combine(wrapperDirectory, wrapper));
+        }
+
+        /// <summary>Copies <see cref="WrapperFiles"/> unchanged from <paramref name="wrapperDirectory"/> into <paramref name="folder"/>.</summary>
+        public static void CopyWrapper(string folder, string wrapperDirectory)
+        {
+            CheckWrapper(wrapperDirectory);
+            foreach (var wrapper in WrapperFiles)
+            {
+                var path = Path.Combine(folder, wrapper);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.Copy(Path.Combine(wrapperDirectory, wrapper), path);
+            }
         }
 
         /// <summary>The stub project file of a .vstemplate: the template kind plus the name typed in the New Project dialog.</summary>

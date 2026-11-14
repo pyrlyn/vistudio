@@ -20,7 +20,9 @@ try {
     $manifest = [xml](Read-Entry 'extension.vsixmanifest')
     if ('KotlinFiles.pkgdef' -notin $manifest.PackageManifest.Assets.Asset.Path) { throw 'File registrations are not installed by the VSIX manifest.' }
     # The image service limits discovery depth; manifests must ship at the extension root.
-    $images = [xml](Read-Entry 'Kotlin.imagemanifest')
+    $manifests = @(@{ Images = [xml](Read-Entry 'Kotlin.imagemanifest'); Registration = $registration },
+        @{ Images = [xml](Read-Entry 'Languages.imagemanifest'); Registration = (Read-Entry 'LanguageFiles.pkgdef') })
+    if ('LanguageFiles.pkgdef' -notin $manifest.PackageManifest.Assets.Asset.Path) { throw 'Language file icons are not installed by the VSIX manifest.' }
     # Visual Studio ships no .properties grammar; ours must sit in the registered TextMate repository and parse.
     $grammar = (Read-Entry 'Grammars/Properties.tmLanguage.json') | ConvertFrom-Json
     if ('properties' -notin $grammar.fileTypes) { throw 'The .properties grammar does not claim the properties extension.' }
@@ -38,7 +40,7 @@ try {
         $entries = @{}
         $iterator = $resources.GetEnumerator()
         while ($iterator.MoveNext()) { $entries[$iterator.Key] = $iterator.Value }
-        foreach ($image in $images.ImageManifest.Images.Image) {
+        foreach ($pair in $manifests) { foreach ($image in $pair.Images.ImageManifest.Images.Image) {
             $key = ($image.Source.Uri -split ';component/')[1].ToLowerInvariant()
             if (-not $entries.ContainsKey($key)) { throw "Unresolvable image resource: $key" }
             $reader = [System.IO.StreamReader]::new($entries[$key])
@@ -46,11 +48,11 @@ try {
             try { $drawing = [xml]$reader.ReadToEnd(); if ($drawing.DocumentElement.LocalName -ne 'Image') { throw "Invalid image service root: $key" } }
             finally { $reader.Dispose() }
             $moniker = $image.Guid.Trim('{}') + ':' + $image.ID
-            if (-not $registration.Contains($moniker)) { throw "Unmapped image moniker: $moniker" }
-        }
+            if (-not $pair.Registration.Contains($moniker)) { throw "Unmapped image moniker: $moniker" }
+        } }
     }
     finally { $resources.Dispose() }
     if ($archive.Entries.FullName | Where-Object { $_ -match '^Microsoft\.VisualStudio\..*\.dll$' }) { throw 'Host SDK assemblies must not ship inside the VSIX.' }
-    Write-Output 'PASS: packaged file associations, .properties grammar, vector icon resources, task discovery and host dependency isolation.'
+    Write-Output 'PASS: packaged file associations (Kotlin and the other languages), .properties grammar, vector icon resources, task discovery and host dependency isolation.'
 }
 finally { $archive.Dispose() }

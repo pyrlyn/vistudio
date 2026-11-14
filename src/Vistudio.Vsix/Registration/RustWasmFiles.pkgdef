@@ -1,0 +1,6 @@
+; Open Rust and WebAssembly text files in the code editor, where the rust / wat / wast content types (Rust/RustContentTypes.cs,
+; Wasm/WasmContentTypes.cs) apply their grammars and language servers. Binary .wasm modules are not text and stay unregistered.
+[$RootKey$\Editors\{8B382828-6202-11D1-8870-0000F87579D2}\Extensions]
+"rs"=dword:00000064
+"wat"=dword:00000064
+"wast"=dword:00000064

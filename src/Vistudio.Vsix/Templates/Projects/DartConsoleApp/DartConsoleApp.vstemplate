@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Dart Console App</Name>
+    <Description>A Dart command-line program with a package:test unit test. Press F5 to debug it with the Dart debugger.</Description>
+    <ProjectType>VistudioLanguages</ProjectType>
+    <TemplateID>Vistudio.DartConsoleApp</TemplateID>
+    <SortOrder>30</SortOrder>
+    <Icon>DartFile.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>DartApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Dart</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="project.dartproj" TargetFileName="$projectname$.dartproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

@@ -1,0 +1,50 @@
+; File icons for the languages Visual Studio has none for. C, C++ and header files keep the built-in Visual C++ icons
+; (KnownMonikers.CFile / CPPFileNode / CPPHeaderFile); .kt, .kts and .properties are in KotlinFiles.pkgdef.
+; Image ids: Icons/Languages.imagemanifest (same order as Vistudio.Core LanguageIcons).
+
+[$RootKey$\ShellFileAssociations\.dart]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:1"
+
+[$RootKey$\ShellFileAssociations\.zig]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:2"
+
+[$RootKey$\ShellFileAssociations\.zon]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:3"
+
+[$RootKey$\ShellFileAssociations\.java]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:4"
+
+[$RootKey$\ShellFileAssociations\.rs]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:5"
+
+[$RootKey$\ShellFileAssociations\.wat]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:6"
+
+[$RootKey$\ShellFileAssociations\.wast]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:6"
+
+[$RootKey$\ShellFileAssociations\.wasm]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:7"
+
+; Project files of the language project types (T59) use the language icon.
+
+[$RootKey$\ShellFileAssociations\.dartproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:1"
+
+[$RootKey$\ShellFileAssociations\.zigproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:2"
+
+[$RootKey$\ShellFileAssociations\.javaproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:4"
+
+[$RootKey$\ShellFileAssociations\.rustproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:5"
+
+[$RootKey$\ShellFileAssociations\.wasmproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:7"
+
+[$RootKey$\ShellFileAssociations\.cproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:8"
+
+[$RootKey$\ShellFileAssociations\.cppproj]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:9"

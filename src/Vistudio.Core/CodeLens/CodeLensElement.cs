@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Vistudio.Core.CodeLens
 {
@@ -30,33 +31,30 @@ namespace Vistudio.Core.CodeLens
         public bool Has(CodeDeclarationTraits trait) => (Traits & trait) != 0;
 
         /// <summary>One identifier per declaration, in order; identifiers are unique within the file.</summary>
-        public static IReadOnlyList<string> Identifiers(IReadOnlyList<CodeDeclaration> declarations)
-        {
-            var result = new string[declarations.Count];
-            var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (var i = 0; i < declarations.Count; i++)
+        public static IReadOnlyList<string> Identifiers(IReadOnlyList<CodeDeclaration> declarations) =>
+            WithOrdinals(declarations.Select(declaration =>
             {
-                var declaration = declarations[i];
                 var kind = declaration.Kind + (declaration.Traits == CodeDeclarationTraits.None ? "" : "/" + (int)declaration.Traits);
-                var id = Prefix + (declaration.CanBeImplemented ? "I" : "-") + (declaration.IsMain ? "M" : "-") + "|" + kind + "|" + declaration.QualifiedName;
-                ordinals.TryGetValue(id, out var ordinal);
-                ordinals[id] = ordinal + 1;
-                result[i] = ordinal == 0 ? id : id + "#" + ordinal;
-            }
-            return result;
-        }
+                return Prefix + (declaration.CanBeImplemented ? "I" : "-") + (declaration.IsMain ? "M" : "-") + "|" + kind + "|" + declaration.QualifiedName;
+            }));
 
         /// <summary>Identifiers of Gradle script tasks; a task registered twice keeps an ordinal like overloads.</summary>
-        public static IReadOnlyList<string> Identifiers(IReadOnlyList<GradleScriptTask> tasks)
+        public static IReadOnlyList<string> Identifiers(IReadOnlyList<GradleScriptTask> tasks) =>
+            WithOrdinals(tasks.Select(task => Prefix + "--|" + GradleTaskKind + "|" + task.Name));
+
+        /// <summary>
+        /// Makes identifiers unique within one file: the second and later occurrences of an identifier get <c>#1</c>,
+        /// <c>#2</c>, ... in document order, so overloads and duplicate names keep stable, distinct lenses.
+        /// </summary>
+        public static IReadOnlyList<string> WithOrdinals(IEnumerable<string> identifiers)
         {
-            var result = new string[tasks.Count];
+            var result = new List<string>();
             var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (var i = 0; i < tasks.Count; i++)
+            foreach (var id in identifiers)
             {
-                var id = Prefix + "--|" + GradleTaskKind + "|" + tasks[i].Name;
                 ordinals.TryGetValue(id, out var ordinal);
                 ordinals[id] = ordinal + 1;
-                result[i] = ordinal == 0 ? id : id + "#" + ordinal;
+                result.Add(ordinal == 0 ? id : id + "#" + ordinal);
             }
             return result;
         }

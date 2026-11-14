@@ -12,11 +12,12 @@ namespace Vistudio.Core.Zig
     public static class ZigArguments
     {
         /// <summary>Splits flags on whitespace; double quotes group an argument. Rejects control characters and unbalanced quotes.</summary>
-        public static IReadOnlyList<string> Split(string? text)
+        /// <param name="subject">Names the flags in error messages (Dart reuses this splitter).</param>
+        public static IReadOnlyList<string> Split(string? text, string subject = "Zig flags")
         {
             var result = new List<string>();
             if (text == null || string.IsNullOrWhiteSpace(text)) return result;
-            if (text.Any(c => c < ' ' && c != '\t')) throw new ArgumentException("Zig flags cannot contain line breaks or control characters.");
+            if (text.Any(c => c < ' ' && c != '\t')) throw new ArgumentException(subject + " cannot contain line breaks or control characters.");
             var current = new StringBuilder();
             var quoted = false;
             var started = false;
@@ -31,7 +32,7 @@ namespace Vistudio.Core.Zig
                 current.Append(c);
                 started = true;
             }
-            if (quoted) throw new ArgumentException("Zig flags have an unbalanced double quote.");
+            if (quoted) throw new ArgumentException(subject + " have an unbalanced double quote.");
             if (started) result.Add(current.ToString());
             return result;
         }

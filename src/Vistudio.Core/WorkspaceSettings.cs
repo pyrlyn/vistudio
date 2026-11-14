@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Vistudio.Core.Dart;
+using Vistudio.Core.Rust;
+using Vistudio.Core.Wasm;
 using Vistudio.Core.Zig;
 
 namespace Vistudio.Core
@@ -35,7 +39,8 @@ namespace Vistudio.Core
     /// </summary>
     /// <remarks>
     /// Keys are <c>vistudio.kotlin.&lt;property&gt;</c>, <c>vistudio.java.&lt;property&gt;</c> (the <c>Java*</c> properties of
-    /// <see cref="KotlinSettings"/>) and <c>vistudio.zig.&lt;property&gt;</c>, written flat or as nested objects. Property names
+    /// <see cref="KotlinSettings"/>) and <c>vistudio.&lt;language&gt;.&lt;property&gt;</c> for each <see cref="StoredSettings"/> section
+    /// (zig, dart, rust, wasm), written flat or as nested objects. Property names
     /// are the settings property names in any case. Precedence: global &lt; <c>.kotlinproj</c> &lt; <c>.vs\settings.json</c>.
     /// </remarks>
     public static class WorkspaceSettings
@@ -44,6 +49,12 @@ namespace Vistudio.Core
         public const string KotlinPrefix = "vistudio.kotlin.";
         public const string JavaPrefix = "vistudio.java.";
         public const string ZigPrefix = "vistudio.zig.";
+        public const string DartPrefix = "vistudio.dart.";
+        public const string RustPrefix = "vistudio.rust.";
+        public const string WasmPrefix = "vistudio.wasm.";
+
+        // Every section a workspace file may contain; other vistudio.* keys are reported as unknown.
+        private static readonly string[] KnownPrefixes = { KotlinPrefix, JavaPrefix, ZigPrefix, DartPrefix, RustPrefix, WasmPrefix };
 
         // Path settings: variables expanded, relative values resolved against the workspace root.
         private static readonly HashSet<string> RootedPaths = new HashSet<string>(StringComparer.Ordinal)
@@ -51,6 +62,9 @@ namespace Vistudio.Core
             "KotlinSettings.LanguageServerPath", "KotlinSettings.LanguageServerJavaHome", "KotlinSettings.JavaLanguageServerPath",
             "KotlinSettings.JavaLanguageServerJavaHome", "KotlinSettings.GradleJavaHome",
             "ZigSettings.ZigPath", "ZigSettings.LibDirectory", "ZigSettings.LanguageServerPath",
+            "DartSettings.FlutterSdkPath", "DartSettings.DartSdkPath",
+            "RustSettings.LanguageServerPath",
+            "WasmSettings.LanguageServerPath", "WasmSettings.WasmtimePath", "WasmSettings.WasmToolsPath",
         };
         // GradleRoot is already relative to the workspace (KotlinEnvironment.ResolveGradleRoot): variables only.
         private static readonly HashSet<string> ExpandedPaths = new HashSet<string>(StringComparer.Ordinal) { "KotlinSettings.GradleRoot" };
@@ -156,9 +170,8 @@ namespace Vistudio.Core
             foreach (var key in values.Keys)
             {
                 if (!key.StartsWith(Section, StringComparison.OrdinalIgnoreCase)) continue;
-                if (!key.StartsWith(KotlinPrefix, StringComparison.OrdinalIgnoreCase) && !key.StartsWith(JavaPrefix, StringComparison.OrdinalIgnoreCase)
-                    && !key.StartsWith(ZigPrefix, StringComparison.OrdinalIgnoreCase))
-                    warnings.Add(key + ": unknown section; use vistudio.kotlin.*, vistudio.java.* or vistudio.zig.*.");
+                if (!KnownPrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                    warnings.Add(key + ": unknown section; use " + string.Join(", ", KnownPrefixes.Select(prefix => prefix + "*")) + ".");
             }
             return new WorkspaceSettingsFile(path, values, warnings);
         }
@@ -189,14 +202,18 @@ namespace Vistudio.Core
             return warnings;
         }
 
-        /// <summary>Applies the workspace overrides to <paramref name="settings"/>; returns warnings for keys that were ignored.</summary>
-        public static IReadOnlyList<string> ApplyTo(ZigSettings settings, string? root)
+        /// <summary>
+        /// Applies the overrides of the settings' own section (<c>vistudio.zig.*</c>, <c>vistudio.dart.*</c>, ...) to
+        /// <paramref name="settings"/>; returns warnings for keys that were ignored. Settings without a section are unchanged.
+        /// </summary>
+        public static IReadOnlyList<string> ApplyTo(StoredSettings settings, string? root)
         {
-            var file = Read(root);
             var warnings = new List<string>();
-            foreach (var pair in file.Values)
-                if (pair.Key.StartsWith(ZigPrefix, StringComparison.OrdinalIgnoreCase))
-                    Set(settings, pair.Key.Substring(ZigPrefix.Length), pair.Key, pair.Value, root!, warnings);
+            var prefix = settings.WorkspacePrefix;
+            if (prefix == null) return warnings;
+            foreach (var pair in Read(root).Values)
+                if (pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    Set(settings, pair.Key.Substring(prefix.Length), pair.Key, pair.Value, root!, warnings);
             return warnings;
         }
 
@@ -205,7 +222,8 @@ namespace Vistudio.Core
         {
             var warnings = new List<string>(Read(root).Warnings);
             warnings.AddRange(ApplyTo(new KotlinSettings(), root));
-            warnings.AddRange(ApplyTo(new ZigSettings(), root));
+            foreach (var settings in new StoredSettings[] { new ZigSettings(), new DartSettings(), new RustSettings(), new WasmSettings() })
+                warnings.AddRange(ApplyTo(settings, root));
             return warnings;
         }
 
@@ -300,6 +318,9 @@ namespace Vistudio.Core
                     else if (property == nameof(ZigSettings.BuildStep) && zig.BuildStep.Length > 0) ZigArguments.ValidateStep(zig.BuildStep);
                     else if (property == nameof(ZigSettings.AstCheckDelayMilliseconds) && zig.AstCheckDelayMilliseconds < 100)
                         throw new ArgumentException("must be at least 100.");
+                    break;
+                case StoredSettings stored:
+                    stored.Validate();
                     break;
             }
         }

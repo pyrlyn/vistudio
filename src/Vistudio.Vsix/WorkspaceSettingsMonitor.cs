@@ -11,7 +11,11 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Workspace.VSIntegration.Contracts;
 using Vistudio.Core;
+using Vistudio.Core.Dart;
+using Vistudio.Core.Rust;
+using Vistudio.Core.Wasm;
 using Vistudio.Core.Zig;
+using Vistudio.Dart;
 using Vistudio.Zig;
 using SolutionEvents = Microsoft.VisualStudio.Shell.Events.SolutionEvents;
 
@@ -36,7 +40,7 @@ namespace Vistudio
         private FileSystemWatcher? watcher;
         private bool initialized, tracking;
         private string? root;
-        private string? kotlinSnapshot, kotlinServer, javaServer, zigSnapshot;
+        private string? kotlinSnapshot, kotlinServer, javaServer, zigSnapshot, dartSnapshot, rustSnapshot, wasmSnapshot;
 
         [ImportingConstructor]
         public WorkspaceSettingsMonitor([Import(typeof(SVsServiceProvider))] IServiceProvider services)
@@ -160,16 +164,19 @@ namespace Vistudio
 
         private readonly struct Changes
         {
-            public Changes(bool kotlin, bool kotlinServer, bool javaServer, bool zig)
+            public Changes(bool kotlin, bool kotlinServer, bool javaServer, bool zig, bool dart, bool rust, bool wasm)
             {
-                Kotlin = kotlin; KotlinServer = kotlinServer; JavaServer = javaServer; Zig = zig;
+                Kotlin = kotlin; KotlinServer = kotlinServer; JavaServer = javaServer; Zig = zig; Dart = dart; Rust = rust; Wasm = wasm;
             }
 
             public bool Kotlin { get; }
             public bool KotlinServer { get; }
             public bool JavaServer { get; }
             public bool Zig { get; }
-            public bool Any => Kotlin || Zig;
+            public bool Dart { get; }
+            public bool Rust { get; }
+            public bool Wasm { get; }
+            public bool Any => Kotlin || Zig || Dart || Rust || Wasm;
         }
 
         // Compares the effective settings with the last ones applied, so unrelated saves of the file restart nothing.
@@ -184,8 +191,13 @@ namespace Vistudio
             var nextKotlinServer = string.Join("\n", kotlin.LanguageServerPath, kotlin.LanguageServerArguments, kotlin.LanguageServerJavaHome, kotlin.GradleRoot, kotlin.GradleJavaHome);
             var nextJavaServer = string.Join("\n", kotlin.JavaLanguageServerPath, kotlin.JavaLanguageServerJavaHome, kotlin.LanguageServerJavaHome, kotlin.GradleRoot, kotlin.GradleJavaHome);
             var nextZig = Serialize(zig);
-            var changes = new Changes(nextKotlin != kotlinSnapshot, nextKotlinServer != kotlinServer, nextJavaServer != javaServer, nextZig != zigSnapshot);
-            kotlinSnapshot = nextKotlin; kotlinServer = nextKotlinServer; javaServer = nextJavaServer; zigSnapshot = nextZig;
+            var nextDart = Serialize(DartSettings.Load());
+            var nextRust = Serialize(RustSettings.Load());
+            var nextWasm = Serialize(WasmSettings.Load());
+            var changes = new Changes(nextKotlin != kotlinSnapshot, nextKotlinServer != kotlinServer, nextJavaServer != javaServer, nextZig != zigSnapshot, nextDart != dartSnapshot,
+                nextRust != rustSnapshot, nextWasm != wasmSnapshot);
+            kotlinSnapshot = nextKotlin; kotlinServer = nextKotlinServer; javaServer = nextJavaServer; zigSnapshot = nextZig; dartSnapshot = nextDart;
+            rustSnapshot = nextRust; wasmSnapshot = nextWasm;
             return changes;
         }
 
@@ -203,6 +215,9 @@ namespace Vistudio
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             if (changes.Zig) ZigEnvironment.OnSettingsChanged();
+            if (changes.Dart) DartEnvironment.OnSettingsChanged();
+            if (changes.Rust) Rust.RustLanguageClient.OnSettingsChanged();
+            if (changes.Wasm) Wasm.WasmLanguageClient.OnSettingsChanged();
             if (!changes.Kotlin) return;
             KotlinProjectNode.OnTreeSettingsChanged();
             ScrollBarMapOptions.OnSettingsChanged();

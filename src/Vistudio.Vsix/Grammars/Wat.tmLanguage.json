@@ -1,0 +1,127 @@
+{
+  "name": "WebAssembly Text",
+  "scopeName": "source.wat",
+  "fileTypes": ["wat", "wast"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#annotations" },
+    { "include": "#instructions" },
+    { "include": "#types" },
+    { "include": "#modules" },
+    { "include": "#keywords" },
+    { "include": "#identifiers" },
+    { "include": "#numbers" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-semicolon.wat", "match": ";;.*$" },
+        { "include": "#block-comment" }
+      ]
+    },
+    "block-comment": {
+      "name": "comment.block.wat",
+      "begin": "\\(;",
+      "end": ";\\)",
+      "patterns": [{ "include": "#block-comment" }]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.wat",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.wat", "match": "\\\\(?:[tnr\"'\\\\]|[0-9a-fA-F]{2}|u\\{[0-9a-fA-F]+\\})" },
+            { "name": "invalid.illegal.escape.wat", "match": "\\\\." }
+          ]
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        { "name": "meta.annotation.wat", "match": "(?<=\\()@[A-Za-z0-9!#$%&'*+\\-./:<=>?@\\\\^_`|~]+" }
+      ]
+    },
+    "instructions": {
+      "patterns": [
+        {
+          "comment": "Dotted instructions: i32.add, local.get, memory.grow, v128.load8x8_s, ref.func, i8x16.shuffle.",
+          "name": "keyword.operator.instruction.wat",
+          "match": "\\b(?:i32|i64|f32|f64|v128|i8x16|i16x8|i32x4|i64x2|f32x4|f64x2|local|global|memory|table|elem|data|ref|atomic|array|struct|any|extern|i31)\\.[a-z0-9_]+(?:\\.[a-z0-9_]+)*\\b"
+        },
+        {
+          "comment": "Undotted control and parametric instructions.",
+          "name": "keyword.control.instruction.wat",
+          "match": "(?<![\\w$.])(?:unreachable|nop|block|loop|if|then|else|end|br|br_if|br_table|br_on_null|br_on_non_null|br_on_cast|br_on_cast_fail|return|return_call|return_call_indirect|return_call_ref|call|call_indirect|call_ref|drop|select|try|try_table|catch|catch_all|catch_ref|catch_all_ref|delegate|throw|throw_ref|rethrow)(?![\\w$.])"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.wat",
+          "match": "(?<![\\w$.])(?:i32|i64|f32|f64|v128|i8|i16|funcref|externref|anyref|eqref|i31ref|structref|arrayref|nullref|nullfuncref|nullexternref|exnref|noexn|any|eq|i31|none|nofunc|noextern)(?![\\w$.])"
+        }
+      ]
+    },
+    "modules": {
+      "patterns": [
+        {
+          "comment": "Module fields and other forms that open a parenthesized declaration.",
+          "name": "storage.type.declaration.wat",
+          "match": "(?<=\\()\\s*(?:module|func|param|result|local|global|memory|data|table|elem|type|import|export|start|tag|rec|sub|field|array|struct)(?![\\w$.])"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "comment": "Memory arguments of load/store instructions.",
+          "name": "variable.parameter.memarg.wat",
+          "match": "(?<![\\w$.])(?:offset|align)=(?=[0-9])"
+        },
+        {
+          "name": "storage.modifier.wat",
+          "match": "(?<![\\w$.])(?:mut|offset|item|declare|shared|final|null|binary|quote|instance|definition)(?![\\w$.])"
+        },
+        {
+          "comment": "WAST script commands.",
+          "name": "keyword.other.wast",
+          "match": "(?<![\\w$.])(?:assert_return|assert_trap|assert_exhaustion|assert_invalid|assert_malformed|assert_unlinkable|assert_exception|register|invoke|get|either|nan:canonical|nan:arithmetic)(?![\\w$.])"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        { "name": "variable.other.quoted.wat", "begin": "\\$\"", "end": "\"", "patterns": [{ "include": "#strings" }] },
+        { "name": "variable.other.identifier.wat", "match": "\\$[A-Za-z0-9!#$%&'*+\\-./:<=>?@\\\\^_`|~]+" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "comment": "Hexadecimal integers and floats: 0xFF, -0x1.8p+3, 0x1_000.",
+          "name": "constant.numeric.hex.wat",
+          "match": "(?<![\\w$.])[+-]?0x[0-9a-fA-F](?:_?[0-9a-fA-F])*(?:\\.(?:[0-9a-fA-F](?:_?[0-9a-fA-F])*)?)?(?:[pP][+-]?[0-9](?:_?[0-9])*)?(?![\\w$.])"
+        },
+        {
+          "comment": "Decimal integers and floats: 42, -1_000, 3.14, 1e-7, 6.02E+23.",
+          "name": "constant.numeric.decimal.wat",
+          "match": "(?<![\\w$.])[+-]?[0-9](?:_?[0-9])*(?:\\.(?:[0-9](?:_?[0-9])*)?)?(?:[eE][+-]?[0-9](?:_?[0-9])*)?(?![\\w$.])"
+        },
+        {
+          "name": "constant.numeric.special.wat",
+          "match": "(?<![\\w$.])[+-]?(?:inf|nan(?::0x[0-9a-fA-F](?:_?[0-9a-fA-F])*)?)(?![\\w$.])"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        { "name": "punctuation.section.parens.wat", "match": "[()]" }
+      ]
+    }
+  }
+}

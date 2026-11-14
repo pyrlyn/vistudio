@@ -23,5 +23,8 @@
     <Compile Include="../../src/Vistudio.Vsix/Language/KotlinServerLifecycle.cs" Link="KotlinServerLifecycle.cs" />
     <Compile Include="../../src/Vistudio.Vsix/Language/InlayHintConfiguration.cs" Link="InlayHintConfiguration.cs" />
     <Compile Include="../../src/Vistudio.Vsix/Language/LspConfigurationReader.cs" Link="LspConfigurationReader.cs" />
+    <!-- Dart: the DAP connection (frame passthrough, hot reload injection) and the flutter run machine-mode session have no VS dependencies. -->
+    <Compile Include="../../src/Vistudio.Vsix/Dart/DartDapConnection.cs" Link="DartDapConnection.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Dart/FlutterAppSession.cs" Link="FlutterAppSession.cs" />
   </ItemGroup>
 </Project>

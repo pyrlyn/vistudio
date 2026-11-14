@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>WebAssembly Module (WAT)</Name>
+    <Description>A WebAssembly text module that runs with wasmtime as a WASI command; built with wasm-tools.</Description>
+    <ProjectType>VistudioLanguages</ProjectType>
+    <TemplateID>Vistudio.WasmModule</TemplateID>
+    <SortOrder>60</SortOrder>
+    <Icon>WasmFile.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>WasmModule</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>WebAssembly</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="project.wasmproj" TargetFileName="$projectname$.wasmproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

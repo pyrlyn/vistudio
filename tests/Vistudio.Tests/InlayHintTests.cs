@@ -15,6 +15,7 @@ internal static class InlayHintTests
     {
         Settings(check);
         Normalize(check);
+        ThemeColors(check);
         await WriterInjectsBetweenFramesAsync(check);
         await ReaderAnswersOwnedSectionsAsync(check);
     }
@@ -135,5 +136,43 @@ internal static class InlayHintTests
         var body = JObject.Parse(answer.Substring(answer.IndexOf("\r\n\r\n", StringComparison.Ordinal) + 4));
         check(answer.StartsWith("Content-Length: ") && (int?)body["id"] == 7 && (bool?)body.SelectToken("result[0]['hints.parameters']") == true,
             "The server gets the owned section answer for its request id");
+    }
+
+    // Registration/InlayHintColors.pkgdef: Dark-theme colors for Visual Studio's LSP inlay hint formats in the editor's
+    // Fonts and Colors category (Visual Studio 18 files its own under Output Window, so editors get light boxes).
+    private static void ThemeColors(Action<bool, string> check)
+    {
+        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "src", "Vistudio.Vsix", "Registration", "InlayHintColors.pkgdef");
+        var lines = File.ReadAllLines(path);
+        var themes = new System.Collections.Generic.Dictionary<string, byte[]>();
+        string? key = null;
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("[", StringComparison.Ordinal)) key = line;
+            else if (key != null && line.StartsWith("\"Data\"=hex:", StringComparison.Ordinal))
+                themes[key] = line.Substring(11).Split(',').Select(h => Convert.ToByte(h, 16)).ToArray();
+        }
+        check(themes.Count == 2, "Inlay hint colors cover Dark and Dark (Extra Contrast)");
+        foreach (var (theme, background, foreground) in new[] { ("1ded0138-47ce-435e-84ef-9ec1f439b749", 0x3E, (byte)0xA9), ("c080e494-8a3f-417f-b846-46155da10c08", 0x33, (byte)0xC7) })
+        {
+            var entry = themes.FirstOrDefault(t => t.Key == @"[$RootKey$\Themes\{" + theme + @"}\Vistudio Text Editor MEF Items]").Value;
+            check(entry != null, "Inlay hint colors for theme " + theme + " use their own key (built-in MEF item colors stay)");
+            if (entry == null) continue;
+            check(BitConverter.ToInt32(entry, 0) == entry.Length && BitConverter.ToInt32(entry, 4) == 11 && BitConverter.ToInt32(entry, 8) == 1,
+                "Theme blob header: length, version 11, one category");
+            check(new Guid(entry.Skip(12).Take(16).ToArray()) == new Guid("75a05685-00a8-4ded-bae5-e7a50bfa929a") && BitConverter.ToInt32(entry, 28) == 2,
+                "Theme blob targets Text Editor MEF Items with two items");
+            var p = 32;
+            foreach (var name in new[] { "inlay hints type", "inlay hints parameter" })
+            {
+                var length = BitConverter.ToInt32(entry, p); p += 4;
+                var actual = Encoding.UTF8.GetString(entry, p, length); p += length;
+                var bg = entry.Skip(p).Take(5).ToArray(); p += 5;
+                var fg = entry.Skip(p).Take(5).ToArray(); p += 5;
+                check(actual == name && bg.SequenceEqual(new byte[] { 1, (byte)background, (byte)background, (byte)background, 0xFF }) && fg[0] == 1 && fg[1] == foreground && fg[4] == 0xFF,
+                    "Theme " + theme + " gives '" + name + "' a dark background and light text");
+            }
+            check(p == entry.Length, "Theme blob has no trailing data");
+        }
     }
 }

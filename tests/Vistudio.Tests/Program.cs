@@ -73,6 +73,41 @@ internal static class Program
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Zig" + (live ? ", live zig.exe" : "") + ").");
                 return failures.Count == 0 ? 0 : 1;
             }
+            if (args.Length == 1 && args[0] == "--rust-wasm")
+            {
+                // Reports every failing Rust/WebAssembly check; the live part runs against rust-analyzer and wat_server when found.
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
+                RustWasmTests.Run(Path.Combine(root, "rust-wasm"), collect);
+                var live = await RustWasmTests.RunLiveAsync(root, collect);
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Rust and WebAssembly" + (live ? ", live servers" : "") + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
+            if (args.Length >= 1 && args[0] == "--dart")
+            {
+                // Reports every failing Dart check; the live part runs against a real SDK when one is found.
+                // Optional second argument: comma-separated live stages (run, analyze, tests, lsp, debug, debugtest,
+                // widget, flutterrun, flutterdebug, integration), "none" for unit checks only; default all.
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) =>
+                {
+                    assertions++;
+                    if (!condition) failures.Add(message);
+                    Console.WriteLine((condition ? "  ok   " : "  FAIL ") + (message.Length > 300 ? message.Substring(0, 300) + "..." : message));
+                };
+                DartTests.Run(root, collect);
+                var stages = args.Length > 1 ? args[1] : "all";
+                var live = false;
+                if (stages != "none")
+                {
+                    try { live = await DartTests.RunLiveAsync(root, collect, stages); }
+                    catch (Exception e) { failures.Add("Live Dart checks stopped: " + e); }
+                }
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Dart" + (live ? ", live SDK" : "") + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--mise")
             {
                 // Reports every failing mise check; the live part runs against the installed mise.exe when one is found.
@@ -82,6 +117,40 @@ internal static class Program
                 var live = await MiseTests.RunLiveAsync(root, collect);
                 foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (mise" + (live ? ", live mise.exe" : "") + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
+            if (args.Length >= 1 && args[0] == "--packages")
+            {
+                // Package managers in Solution Explorer (T60), language catalog and projects (T58, T59). The live parts run
+                // against the managers found on this machine (network access to their registries); "--packages none" skips them.
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
+                LanguageTests.Run(collect);
+                LanguageProjectTests.Run(Path.Combine(root, "language-projects"), collect);
+                PackagesPubTests.Run(Path.Combine(root, "pub"), collect);
+                PackagesCargoTests.Run(Path.Combine(root, "cargo"), collect);
+                PackagesConanTests.Run(Path.Combine(root, "conan"), collect);
+                PackagesZigTests.Run(Path.Combine(root, "zig"), collect);
+                PackagesGradleTests.Run(Path.Combine(root, "gradle"), collect);
+                PackagesWkgTests.Run(Path.Combine(root, "wkg"), collect);
+                var live = new System.Collections.Generic.List<string>();
+                if (!(args.Length > 1 && args[1] == "none"))
+                {
+                    async Task Live(string name, Func<Task<bool>> run)
+                    {
+                        try { if (await run()) live.Add(name); }
+                        catch (Exception e) { failures.Add("Live " + name + " checks stopped: " + e); }
+                    }
+                    await Live("pub", () => PackagesPubTests.RunLiveAsync(Path.Combine(root, "pub-live"), collect));
+                    await Live("Cargo", () => PackagesCargoTests.RunLiveAsync(Path.Combine(root, "cargo-live"), collect));
+                    await Live("Conan", () => PackagesConanTests.RunLiveAsync(Path.Combine(root, "conan-live"), collect));
+                    await Live("Zig", () => PackagesZigTests.RunLiveAsync(Path.Combine(root, "zig-live"), collect));
+                    await Live("wkg", () => PackagesWkgTests.RunLiveAsync(Path.Combine(root, "wkg-live"), collect));
+                    await Live("Gradle", () => PackagesGradleTests.RunLiveAsync(Path.Combine(root, "gradle-live"), collect, Path.GetDirectoryName(DartTests.FindRepositoryFile("AGENTS.md"))!));
+                }
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (languages, projects, packages"
+                    + (live.Count == 0 ? "" : "; live: " + string.Join(", ", live)) + ").");
                 return failures.Count == 0 ? 0 : 1;
             }
             if (args.Length == 1 && args[0] == "--codelens")
@@ -105,6 +174,7 @@ internal static class Program
             CodeLensKindsTests.Run(Check, root);
             StructureTests.Run(Check);
             ZigTests.Run(root, Check);
+            DartTests.Run(root, Check);
             MiseTests.Run(root, Check);
             await ProjectFileTests.RunAsync(root, Check);
             ProjectTreeTests.Run(root, Check);
@@ -178,7 +248,12 @@ internal static class Program
         finally
         {
             // This directory is created exclusively by this test run.
-            if (Directory.Exists(root)) Directory.Delete(root, true);
+            // A Flutter app that just exited can hold its DLLs for a moment; retry, then leave the folder to the OS temp cleanup.
+            for (var attempt = 0; Directory.Exists(root) && attempt < 10; attempt++)
+            {
+                try { Directory.Delete(root, true); }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { if (attempt == 9) Console.WriteLine("WARN: could not delete " + root + ": " + e.Message); else Thread.Sleep(2000); }
+            }
         }
     }
 }

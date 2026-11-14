@@ -11,6 +11,8 @@ namespace Vistudio.Core.Projects
         Project, Module, SourceSet, SourceRoot, Folder, File, Dependencies, Configuration,
         Library, ProjectReference, FileReference, ScriptsFolder, Message,
         Toolchain, Tool, Frameworks, Framework, Declared, Targets, Target,
+        /// <summary>A package manager's declared packages (one manifest) and one declared package.</summary>
+        Packages, Package,
     }
 
     /// <summary>One node of the IDE project tree. Container children load lazily, so unexpanded folders are never enumerated.</summary>
@@ -39,8 +41,18 @@ namespace Vistudio.Core.Projects
         public IReadOnlyList<KeyValuePair<string, string>> Details { get; }
         /// <summary>For <see cref="ProjectTreeKind.Target"/> nodes: the imported target, used by per-target Gradle commands.</summary>
         public KotlinTarget? Target { get; internal set; }
+        /// <summary>For <see cref="ProjectTreeKind.Package"/> nodes: the declared package and its versions, used by the package commands.</summary>
+        public Packages.PackageEntry? Package { get; set; }
+        /// <summary>For <see cref="ProjectTreeKind.Packages"/> nodes: the manager and manifest the node lists.</summary>
+        public Packages.PackageManifestRef? Manifest { get; set; }
         /// <summary>Sibling identity used to keep IDE item ids stable across refreshes.</summary>
-        public string Key => Kind + "|" + (Path ?? Caption);
+        public string Key => Kind + "|" + (Identity ?? Path ?? Caption);
+
+        /// <summary>
+        /// Sibling identity for nodes whose caption changes while they stay the same thing (a Packages node gains an
+        /// outdated count, a package its versions), so refreshes keep their expansion and selection.
+        /// </summary>
+        public string? Identity { get; set; }
         public bool IsFileSystemContainer => Kind == ProjectTreeKind.Folder || Kind == ProjectTreeKind.SourceRoot;
         public bool IsDocument => Kind == ProjectTreeKind.File;
         public IReadOnlyList<ProjectTreeNode> Children => children ?? (children = load?.Invoke() ?? None);

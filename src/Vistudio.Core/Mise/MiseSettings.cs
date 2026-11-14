@@ -1,14 +1,10 @@
-using System;
-using System.IO;
-using System.Xml;
-using System.Xml.Serialization;
-
 namespace Vistudio.Core.Mise
 {
     /// <summary>
     /// Mise settings (Tools &gt; Options &gt; Mise). Stored in their own file, independent of the Kotlin and Zig settings.
+    /// No workspace overrides: <see cref="StoredSettings{TSelf}.Load()"/> returns the global values.
     /// </summary>
-    public sealed class MiseSettings
+    public sealed class MiseSettings : StoredSettings<MiseSettings>
     {
         /// <summary>Absolute path to mise.exe (or its folder). Empty searches PATH.</summary>
         public string MisePath { get; set; } = "";
@@ -23,37 +19,11 @@ namespace Vistudio.Core.Mise
         /// <summary>How long an update check (<c>mise outdated</c>, which queries remote versions) is reused before it runs again.</summary>
         public int CacheMinutes { get; set; } = 30;
 
-        public static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", "mise-settings.xml");
+        public MiseSettings() : base("mise-settings.xml", null) { }
 
-        public static MiseSettings Load() => Load(FilePath);
-
-        public static MiseSettings Load(string path)
-        {
-            if (!File.Exists(path)) return new MiseSettings();
-            try
-            {
-                using (var reader = XmlReader.Create(path, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
-                    return (MiseSettings)new XmlSerializer(typeof(MiseSettings)).Deserialize(reader);
-            }
-            catch (InvalidOperationException) { return new MiseSettings(); }
-            catch (XmlException) { return new MiseSettings(); }
-        }
-
-        public void Save() => Save(FilePath);
-
-        public void Save(string path)
+        protected override void PrepareSave()
         {
             if (CacheMinutes < 1) CacheMinutes = 1;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                using (var writer = XmlWriter.Create(temp, new XmlWriterSettings { Indent = true }))
-                    new XmlSerializer(typeof(MiseSettings)).Serialize(writer, this);
-                if (File.Exists(path)) File.Replace(temp, path, null);
-                else File.Move(temp, path);
-            }
-            finally { if (File.Exists(temp)) File.Delete(temp); }
         }
     }
 }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
+  <Images>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="1">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/DartFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="2">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/ZigFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="3">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/ZonFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="4">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/JavaFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="5">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/RustFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="6">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/WatFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="7">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/WasmFile.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="8">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/CProject.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="9">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/CppProject.xaml" />
+    </Image>
+  </Images>
+</ImageManifest>

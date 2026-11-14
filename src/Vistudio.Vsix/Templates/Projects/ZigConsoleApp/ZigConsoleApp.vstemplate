@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Zig Console App</Name>
+    <Description>A Zig command-line program built with zig build, with a test. Press F5 to debug it with the native debugger.</Description>
+    <ProjectType>VistudioLanguages</ProjectType>
+    <TemplateID>Vistudio.ZigConsoleApp</TemplateID>
+    <SortOrder>20</SortOrder>
+    <Icon>ZigFile.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>ZigApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Zig</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="project.zigproj" TargetFileName="$projectname$.zigproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

@@ -1,0 +1,143 @@
+import java.util.concurrent.ConcurrentHashMap
+import org.gradle.api.artifacts.ComponentSelection
+import org.gradle.api.artifacts.ExternalModuleDependency
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+
+// Reports declared external module dependencies with the newest release Gradle's own dynamic-version resolution finds
+// in the project's repositories. Read-only: nothing is compiled, no artifact is downloaded, the build
+// is never edited. Failures are recorded per dependency or project and never fail the build.
+// Each project resolves its own configurations in its own task (legal under parallel execution and project isolation);
+// the root task only merges what they collected, after all of them finished.
+def requestedRoot = System.getenv('VISTUDIO_OUTDATED_ROOT')
+def requestedBuildFile = System.getenv('VISTUDIO_OUTDATED_BUILD_FILE')
+def collectTaskName = 'vistudioOutdated6cc1f5c0'
+def collected = new ConcurrentHashMap<String, List<String>>()
+def gradleVersion = gradle.gradleVersion
+
+// Qualifiers that mark a pre-release even though Maven metadata gives it release status.
+def preRelease = ~/(?i)^.*?[.\-_](alpha|beta|rc|cr|m|milestone|preview|eap|dev|snapshot|pre|ea)[.\-_]?\d*([.\-_+].*)?$/
+def clean = { value -> value == null ? '' : value.toString().replaceAll(/[\t\r\n]/, ' ') }
+def compareVersions = { String left, String right ->
+    def a = left.split(/[.\-]/)
+    def b = right.split(/[.\-]/)
+    for (int i = 0; i < Math.max(a.length, b.length); i++) {
+        if (i >= a.length) return -1
+        if (i >= b.length) return 1
+        def x = a[i].isLong() ? a[i].toLong() : null
+        def y = b[i].isLong() ? b[i].toLong() : null
+        int result = x != null && y != null ? x <=> y : (x != null ? 1 : (y != null ? -1 : a[i] <=> b[i]))
+        if (result != 0) return result
+    }
+    return 0
+}
+
+// [version, rejectedPreReleases] of the newest release, resolved in a detached, non-transitive configuration.
+// latest.release stops at its top candidate when a rule rejects it (verified with Gradle 8.14.7), so the stable-only
+// lookup uses '+', which walks down past rejected candidates; latest.release still answers when only pre-releases exist.
+def newestRelease = { project, String group, String name, boolean stableOnly ->
+    def accepted = Collections.synchronizedList([])
+    def rejected = 0
+    def configuration = project.configurations.detachedConfiguration(project.dependencies.create([group: group, name: name, version: stableOnly ? '+' : 'latest.release']))
+    configuration.transitive = false
+    configuration.resolutionStrategy.componentSelection.all { ComponentSelection selection ->
+        def candidate = selection.candidate.version
+        if (candidate.toUpperCase().endsWith('-SNAPSHOT') || (stableOnly && candidate ==~ preRelease)) {
+            rejected++
+            selection.reject('Vistudio: pre-release')
+        } else accepted.add(candidate)
+    }
+    def version = null
+    try {
+        def result = configuration.incoming.resolutionResult.root.dependencies.find { it instanceof ResolvedDependencyResult }
+        if (result != null && result.selected.id instanceof ModuleComponentIdentifier) version = result.selected.id.version
+    } catch (Exception ignored) {
+        // Variant selection can fail without consumer attributes; the version was already chosen, see below.
+    }
+    // Rules run after version matching, newest first, so the first accepted candidate per repository is that
+    // repository's answer; the highest across repositories is Gradle's.
+    if (version == null && !accepted.isEmpty()) version = accepted.max { x, y -> compareVersions(x, y) }
+    [version, rejected]
+}
+
+def outdatedRecords = { project ->
+    def records = new LinkedHashSet<String>()
+    def latestByModule = [:]
+    def selectedByConfiguration = [:]
+    def selectedIn = { configuration ->
+        if (!selectedByConfiguration.containsKey(configuration.name)) {
+            def versions = [:]
+            try {
+                configuration.incoming.resolutionResult.allComponents.each { component ->
+                    if (component.id instanceof ModuleComponentIdentifier) versions[component.id.group + ':' + component.id.module] = component.id.version
+                }
+            } catch (Exception ignored) { }
+            selectedByConfiguration[configuration.name] = versions
+        }
+        selectedByConfiguration[configuration.name]
+    }
+    def rank = { name -> name ==~ /(?i).*runtimeClasspath/ ? 0 : (name ==~ /(?i).*compileClasspath/ ? 1 : 2) }
+    def configurations = project.configurations.toList()
+    configurations.sort { it.name }.each { declaring ->
+        declaring.dependencies.withType(ExternalModuleDependency).each { dependency ->
+            if (!dependency.group) return
+            def key = dependency.group + ':' + dependency.name
+            def declared = dependency.version
+            try {
+                if (!latestByModule.containsKey(key)) {
+                    def stableOnly = !(declared && declared ==~ preRelease)
+                    def answer = newestRelease(project, dependency.group, dependency.name, stableOnly)
+                    // Only pre-releases exist: report the newest of those rather than nothing.
+                    if (answer[0] == null && answer[1] > 0) answer = newestRelease(project, dependency.group, dependency.name, false)
+                    latestByModule[key] = answer[0]
+                }
+                // The selected version comes from the classpaths that inherit the declaring configuration.
+                def current = null
+                configurations.findAll { it.canBeResolved && !(it.name in ['default', 'archives']) && !it.name.endsWith('Elements') && it.hierarchy.contains(declaring) }
+                    .sort { a, b -> rank(a.name) <=> rank(b.name) ?: a.name.length() <=> b.name.length() ?: a.name <=> b.name }
+                    .find { current = selectedIn(it)[key]; current != null }
+                records.add(['VISTUDIO-OUTDATED', project.path, declaring.name, key, declared, current, latestByModule[key]].collect { clean(it) }.join('\t'))
+            } catch (Exception failure) {
+                records.add(['VISTUDIO-OUTDATED', project.path, declaring.name, key, declared, '', ''].collect { clean(it) }.join('\t'))
+                records.add(['VISTUDIO-OUTDATED-ERROR', project.path, key + ': ' + failure.message].collect { clean(it) }.join('\t'))
+            }
+        }
+    }
+    records.toList()
+}
+
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    // Init scripts also reach buildSrc and included builds; only the requested build reports.
+    if (!requestedRoot || root.projectDir.canonicalFile != new File(requestedRoot).canonicalFile) return
+    def targets = root.allprojects.findAll { !requestedBuildFile || it.buildFile.canonicalFile == new File(requestedBuildFile).canonicalFile }
+    targets.each { target ->
+        target.tasks.register(collectTaskName) { task ->
+            task.doLast {
+                try {
+                    collected.put(target.path, outdatedRecords(target))
+                } catch (Exception failure) {
+                    collected.put(target.path, [['VISTUDIO-OUTDATED-ERROR', target.path, failure.message].collect { clean(it) }.join('\t')])
+                }
+            }
+        }
+    }
+    root.tasks.register('vistudioOutdatedReport6cc1f5c0') { task ->
+        task.dependsOn(targets.collect { (it.path == ':' ? '' : it.path) + ':' + collectTaskName })
+        task.doLast {
+            def lines = ['VISTUDIO-OUTDATED-GRADLE\t' + gradleVersion]
+            if (targets.isEmpty()) lines.add('VISTUDIO-OUTDATED-ERROR\t\tNo project of this build uses ' + clean(requestedBuildFile))
+            targets.sort { it.path }.each { lines.addAll(collected[it.path] ?: []) }
+            def destination = System.getenv('VISTUDIO_OUTDATED_OUTPUT')
+            if (destination) {
+                def file = new File(destination)
+                file.parentFile?.mkdirs()
+                file.withWriter('UTF-8') { writer -> lines.each { writer.write(it); writer.write('\n') } }
+            }
+            // Printed as one block after every project finished, so parallel task output cannot interleave with it.
+            println('VISTUDIO-OUTDATED-BEGIN')
+            lines.each { println(it) }
+            println('VISTUDIO-OUTDATED-END')
+        }
+    }
+}

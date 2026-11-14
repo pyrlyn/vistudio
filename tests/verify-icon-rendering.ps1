@@ -1,7 +1,9 @@
 param([string]$IconDirectory = (Join-Path $PSScriptRoot '../src/Vistudio.Vsix/Icons'))
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
-foreach ($name in @('KotlinFile', 'KotlinScript', 'PropertiesFile')) {
+$names = Get-ChildItem $IconDirectory -Filter *.xaml | ForEach-Object BaseName
+if ($names.Count -lt 12) { throw "Expected at least 12 icons, found $($names.Count)." }
+foreach ($name in $names) {
     $element = [Windows.Markup.XamlReader]::Parse((Get-Content (Join-Path $IconDirectory "$name.xaml") -Raw))
     # The VS Image Service rejects DrawingImage roots: XAML must produce a UIElement or BitmapSource.
     if ($element -isnot [Windows.UIElement]) { throw "$name is not an image-service UIElement." }

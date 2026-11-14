@@ -53,12 +53,17 @@ namespace Vistudio.Core
             return start;
         }
 
-        private static ProcessStartInfo CreateInitScript(string root, string javaHome, string script, string task)
+        /// <summary>
+        /// Runs one task an init script registers: wrapper through cmd.exe, no configuration cache and no
+        /// configure-on-demand (the script must see every project), no daemon left behind. Paths for the script go in
+        /// environment variables, never on the command line.
+        /// </summary>
+        public static ProcessStartInfo CreateInitScript(string root, string javaHome, string script, string task)
         {
             script = Path.GetFullPath(script);
-            if (!File.Exists(script)) throw new FileNotFoundException("Gradle discovery script is missing.", script);
+            if (!File.Exists(script)) throw new FileNotFoundException("Gradle init script is missing.", script);
             if (Regex.IsMatch(script, "[\"%!\r\n]"))
-                throw new ArgumentException("The discovery script path contains shell expansion characters.");
+                throw new ArgumentException("The init script path contains shell expansion characters.");
             return CreateCore(root, javaHome, "--no-configuration-cache --no-configure-on-demand --init-script \"" + script + "\" " + task);
         }
 

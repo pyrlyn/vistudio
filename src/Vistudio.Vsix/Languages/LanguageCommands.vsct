@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Commands of LanguagesPackage: package nodes in Solution Explorer (every project type) and Run / Run Tests on language projects. -->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+  <Commands package="guidLanguagesPackage">
+    <Menus>
+      <Menu guid="guidLanguageCommands" id="PackagesMenu" type="Context"><Strings><ButtonText>Packages</ButtonText></Strings></Menu>
+      <Menu guid="guidLanguageCommands" id="PackageMenu" type="Context"><Strings><ButtonText>Package</ButtonText></Strings></Menu>
+    </Menus>
+    <Groups>
+      <Group guid="guidLanguageCommands" id="PackagesGroup" priority="0x0100"><Parent guid="guidLanguageCommands" id="PackagesMenu" /></Group>
+      <Group guid="guidLanguageCommands" id="PackagesUpdateGroup" priority="0x0200"><Parent guid="guidLanguageCommands" id="PackagesMenu" /></Group>
+      <Group guid="guidLanguageCommands" id="PackageGroup" priority="0x0100"><Parent guid="guidLanguageCommands" id="PackageMenu" /></Group>
+      <Group guid="guidLanguageCommands" id="PackageRemoveGroup" priority="0x0200"><Parent guid="guidLanguageCommands" id="PackageMenu" /></Group>
+      <Group guid="guidLanguageCommands" id="ProjectGroup" priority="0x0150"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_PROJNODE" /></Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidLanguageCommands" id="AddPackage" priority="0x0100" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackagesGroup" />
+        <Icon guid="ImageCatalogGuid" id="AddReference" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Add Package...</ButtonText><CanonicalName>.Vistudio.AddPackage</CanonicalName><LocCanonicalName>.Vistudio.AddPackage</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="CheckForUpdates" priority="0x0200" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackagesGroup" />
+        <Icon guid="ImageCatalogGuid" id="Refresh" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Check for Updates</ButtonText><CanonicalName>.Vistudio.CheckPackageUpdates</CanonicalName><LocCanonicalName>.Vistudio.CheckPackageUpdates</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="UpdateAll" priority="0x0100" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackagesUpdateGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Update All (within constraints)</ButtonText><CanonicalName>.Vistudio.UpdateAllPackages</CanonicalName><LocCanonicalName>.Vistudio.UpdateAllPackages</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="UpdateAllLatest" priority="0x0200" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackagesUpdateGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Update All to Latest</ButtonText><CanonicalName>.Vistudio.UpdateAllPackagesToLatest</CanonicalName><LocCanonicalName>.Vistudio.UpdateAllPackagesToLatest</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="OpenManifest" priority="0x0300" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackagesUpdateGroup" />
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Open Manifest</ButtonText><CanonicalName>.Vistudio.OpenPackageManifest</CanonicalName><LocCanonicalName>.Vistudio.OpenPackageManifest</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="UpdatePackage" priority="0x0100" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackageGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Update</ButtonText><CanonicalName>.Vistudio.UpdatePackage</CanonicalName><LocCanonicalName>.Vistudio.UpdatePackage</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="UpdatePackageLatest" priority="0x0200" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackageGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Update to Latest</ButtonText><CanonicalName>.Vistudio.UpdatePackageToLatest</CanonicalName><LocCanonicalName>.Vistudio.UpdatePackageToLatest</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="GoToDeclaration" priority="0x0300" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackageGroup" />
+        <Strings><ButtonText>Go to Declaration</ButtonText><CanonicalName>.Vistudio.GoToPackageDeclaration</CanonicalName><LocCanonicalName>.Vistudio.GoToPackageDeclaration</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="RemovePackage" priority="0x0100" type="Button">
+        <Parent guid="guidLanguageCommands" id="PackageRemoveGroup" />
+        <Icon guid="ImageCatalogGuid" id="Cancel" /><CommandFlag>IconIsMoniker</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Remove</ButtonText><CanonicalName>.Vistudio.RemovePackage</CanonicalName><LocCanonicalName>.Vistudio.RemovePackage</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="RunProject" priority="0x0100" type="Button">
+        <Parent guid="guidLanguageCommands" id="ProjectGroup" />
+        <Icon guid="ImageCatalogGuid" id="Run" /><CommandFlag>IconIsMoniker</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Run</ButtonText><CanonicalName>.Vistudio.RunLanguageProject</CanonicalName><LocCanonicalName>.Vistudio.RunLanguageProject</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="TestProject" priority="0x0200" type="Button">
+        <Parent guid="guidLanguageCommands" id="ProjectGroup" />
+        <Icon guid="ImageCatalogGuid" id="RunTest" /><CommandFlag>IconIsMoniker</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag>
+        <Strings><ButtonText>Run Tests</ButtonText><CanonicalName>.Vistudio.TestLanguageProject</CanonicalName><LocCanonicalName>.Vistudio.TestLanguageProject</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidLanguageCommands" id="CancelProject" priority="0x0300" type="Button">
+        <Parent guid="guidLanguageCommands" id="ProjectGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag><CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Cancel Run</ButtonText><CanonicalName>.Vistudio.CancelLanguageProject</CanonicalName><LocCanonicalName>.Vistudio.CancelLanguageProject</LocCanonicalName></Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidLanguagesPackage" value="{486c739c-7327-4a2b-9c0c-383595f5649c}" />
+    <GuidSymbol name="guidLanguageCommands" value="{c386fa11-6735-43f2-9cfe-2dec11a8d70a}">
+      <IDSymbol name="PackagesMenu" value="0x2000" /><IDSymbol name="PackageMenu" value="0x2001" />
+      <IDSymbol name="PackagesGroup" value="0x1000" /><IDSymbol name="PackagesUpdateGroup" value="0x1001" />
+      <IDSymbol name="PackageGroup" value="0x1002" /><IDSymbol name="PackageRemoveGroup" value="0x1003" /><IDSymbol name="ProjectGroup" value="0x1004" />
+      <IDSymbol name="AddPackage" value="0x0100" /><IDSymbol name="CheckForUpdates" value="0x0101" /><IDSymbol name="UpdateAll" value="0x0102" />
+      <IDSymbol name="UpdateAllLatest" value="0x0103" /><IDSymbol name="OpenManifest" value="0x0104" />
+      <IDSymbol name="UpdatePackage" value="0x0110" /><IDSymbol name="UpdatePackageLatest" value="0x0111" /><IDSymbol name="RemovePackage" value="0x0112" />
+      <IDSymbol name="GoToDeclaration" value="0x0113" />
+      <IDSymbol name="RunProject" value="0x0120" /><IDSymbol name="TestProject" value="0x0121" /><IDSymbol name="CancelProject" value="0x0122" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

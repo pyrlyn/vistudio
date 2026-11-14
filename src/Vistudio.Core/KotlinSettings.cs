@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Xml;
-using System.Xml.Serialization;
 
 namespace Vistudio.Core
 {
@@ -51,15 +49,11 @@ namespace Vistudio.Core
         public bool JavaInlayHintsParameterTypes { get; set; } = true;
         public bool JavaInlayHintsFormatParameters { get; set; } = true;
 
-        public static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", "settings.xml");
+        public static string FilePath => SettingsXml.PathFor("settings.xml");
 
         /// <summary>Tools &gt; Options values only. Use this to edit and <see cref="Save"/> the global defaults.</summary>
-        public static KotlinSettings LoadGlobal()
-        {
-            if (!File.Exists(FilePath)) return new KotlinSettings();
-            using (var reader = XmlReader.Create(FilePath, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
-                return (KotlinSettings)new XmlSerializer(typeof(KotlinSettings)).Deserialize(reader);
-        }
+        /// <remarks>Unlike the other languages, a damaged file throws: callers report it instead of silently resetting Kotlin.</remarks>
+        public static KotlinSettings LoadGlobal() => SettingsXml.Read<KotlinSettings>(FilePath);
 
         /// <summary>Effective settings of this Visual Studio window: global values overridden by its workspace's <c>.vs\settings.json</c>.</summary>
         public static KotlinSettings Load()
@@ -97,16 +91,7 @@ namespace Vistudio.Core
             GradleCommand.ParseTasks(BuildTasks);
             GradleCommand.ParseTasks(TestTasks);
             GradleCommand.ParseTasks(RunTasks);
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            var temp = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                using (var writer = XmlWriter.Create(temp, new XmlWriterSettings { Indent = true }))
-                    new XmlSerializer(typeof(KotlinSettings)).Serialize(writer, this);
-                if (File.Exists(FilePath)) System.IO.File.Replace(temp, FilePath, null);
-                else System.IO.File.Move(temp, FilePath);
-            }
-            finally { if (File.Exists(temp)) System.IO.File.Delete(temp); }
+            SettingsXml.Write(this, FilePath);
         }
     }
 }

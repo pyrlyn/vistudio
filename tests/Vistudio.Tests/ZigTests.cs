@@ -496,7 +496,7 @@ internal static class ZigTests
         throw new FileNotFoundException("Repository file not found above the test binary: " + relative);
     }
 
-    private static bool TryRegex(string pattern)
+    internal static bool TryRegex(string pattern)
     {
         // TextMate uses Oniguruma; these patterns stay within the subset .NET also understands.
         try { _ = new System.Text.RegularExpressions.Regex(pattern); return true; }

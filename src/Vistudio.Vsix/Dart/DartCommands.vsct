@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dart and Flutter commands (DartPackage). Compiled to its own menu resource so the Kotlin and Zig tables are untouched. -->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" /><Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+  <Commands package="guidDartPackage">
+    <Menus>
+      <Menu guid="guidDartCommands" id="DartToolbar" type="Toolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings><ButtonText>Dart</ButtonText><CommandName>Dart</CommandName></Strings>
+      </Menu>
+      <Menu guid="guidDartCommands" id="DartMenu" priority="0x0620" type="Menu">
+        <Parent guid="guidDartCommands" id="DartToolsGroup" />
+        <Strings><ButtonText>Dart</ButtonText><CommandName>Dart</CommandName></Strings>
+      </Menu>
+    </Menus>
+    <Groups>
+      <Group guid="guidDartCommands" id="DartToolsGroup" priority="0x0620"><Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" /></Group>
+      <Group guid="guidDartCommands" id="DartRunGroup" priority="0x0100"><Parent guid="guidDartCommands" id="DartMenu" /></Group>
+      <Group guid="guidDartCommands" id="DartTestGroup" priority="0x0200"><Parent guid="guidDartCommands" id="DartMenu" /></Group>
+      <Group guid="guidDartCommands" id="DartServiceGroup" priority="0x0300"><Parent guid="guidDartCommands" id="DartMenu" /></Group>
+      <Group guid="guidDartCommands" id="DartToolbarGroup" priority="0x0100"><Parent guid="guidDartCommands" id="DartToolbar" /></Group>
+      <Group guid="guidDartCommands" id="DartEditorGroup" priority="0x0710"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" /></Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidDartCommands" id="Run" priority="0x0100" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Run" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Run (dart run / flutter run)</ButtonText><ToolTipText>Run the program or Flutter app of the active package without the debugger</ToolTipText><CommandName>Dart.Run</CommandName><CanonicalName>.Dart.Run</CanonicalName><LocCanonicalName>.Dart.Run</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="Debug" priority="0x0110" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="DebugSelection" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Debug</ButtonText><ToolTipText>Debug the program or Flutter app of the active package</ToolTipText><CommandName>Dart.Debug</CommandName><CanonicalName>.Dart.Debug</CanonicalName><LocCanonicalName>.Dart.Debug</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="Stop" priority="0x0120" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Stop" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Stop App</ButtonText><ToolTipText>Stop the program or Flutter app started with Run</ToolTipText><CommandName>Dart.Stop</CommandName><CanonicalName>.Dart.Stop</CanonicalName><LocCanonicalName>.Dart.Stop</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="HotReload" priority="0x0130" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Refresh" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Flutter: Hot Reload</ButtonText><ToolTipText>Inject changed code into the running Flutter app and keep its state</ToolTipText><CommandName>Dart.HotReload</CommandName><CanonicalName>.Dart.HotReload</CanonicalName><LocCanonicalName>.Dart.HotReload</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="HotRestart" priority="0x0140" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Restart" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Flutter: Hot Restart</ButtonText><ToolTipText>Restart the running Flutter app with the changed code (state is lost)</ToolTipText><CommandName>Dart.HotRestart</CommandName><CanonicalName>.Dart.HotRestart</CanonicalName><LocCanonicalName>.Dart.HotRestart</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="SelectDevice" priority="0x0150" type="Button">
+        <Parent guid="guidDartCommands" id="DartRunGroup" />
+        <Icon guid="ImageCatalogGuid" id="Phone" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Flutter: List Devices</ButtonText><ToolTipText>List devices (flutter devices); choose one in the Dart toolbar or Tools &gt; Options &gt; Dart</ToolTipText><CommandName>Dart.ListDevices</CommandName><CanonicalName>.Dart.ListDevices</CanonicalName><LocCanonicalName>.Dart.ListDevices</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="RunTests" priority="0x0100" type="Button">
+        <Parent guid="guidDartCommands" id="DartTestGroup" />
+        <Icon guid="ImageCatalogGuid" id="RunAll" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Run Unit Tests</ButtonText><ToolTipText>dart test / flutter test for the active package</ToolTipText><CommandName>Dart.RunTests</CommandName><CanonicalName>.Dart.RunTests</CanonicalName><LocCanonicalName>.Dart.RunTests</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="RunTestFile" priority="0x0110" type="Button">
+        <Parent guid="guidDartCommands" id="DartTestGroup" />
+        <Icon guid="ImageCatalogGuid" id="RunTest" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Run Tests in File</ButtonText><ToolTipText>Run the tests of the active test file</ToolTipText><CommandName>Dart.RunTestFile</CommandName><CanonicalName>.Dart.RunTestFile</CanonicalName><LocCanonicalName>.Dart.RunTestFile</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="DebugTestFile" priority="0x0120" type="Button">
+        <Parent guid="guidDartCommands" id="DartTestGroup" />
+        <Icon guid="ImageCatalogGuid" id="StartTestGroupWithDebugger" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Debug Tests in File</ButtonText><ToolTipText>Debug the tests of the active test file</ToolTipText><CommandName>Dart.DebugTestFile</CommandName><CanonicalName>.Dart.DebugTestFile</CanonicalName><LocCanonicalName>.Dart.DebugTestFile</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="RunIntegrationTests" priority="0x0130" type="Button">
+        <Parent guid="guidDartCommands" id="DartTestGroup" />
+        <Icon guid="ImageCatalogGuid" id="RunTestDialog" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Run Integration Tests</ButtonText><ToolTipText>flutter test integration_test on the selected device</ToolTipText><CommandName>Dart.RunIntegrationTests</CommandName><CanonicalName>.Dart.RunIntegrationTests</CanonicalName><LocCanonicalName>.Dart.RunIntegrationTests</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="PubGet" priority="0x0100" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="DownloadNoColor" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Pub Get</ButtonText><CommandName>Dart.PubGet</CommandName><CanonicalName>.Dart.PubGet</CanonicalName><LocCanonicalName>.Dart.PubGet</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="Analyze" priority="0x0110" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="CodeErrorRule" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Analyze Package (dart analyze)</ButtonText><CommandName>Dart.Analyze</CommandName><CanonicalName>.Dart.Analyze</CanonicalName><LocCanonicalName>.Dart.Analyze</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="Cancel" priority="0x0120" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="StopTime" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Cancel</ButtonText><ToolTipText>Stop running tests, pub get or analyze</ToolTipText><CommandName>Dart.Cancel</CommandName><CanonicalName>.Dart.Cancel</CanonicalName><LocCanonicalName>.Dart.Cancel</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="NewFlutterApp" priority="0x0130" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Application" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>New Flutter App...</ButtonText><ToolTipText>flutter create into a new folder and open it</ToolTipText><CommandName>Dart.NewFlutterApp</CommandName><CanonicalName>.Dart.NewFlutterApp</CanonicalName><LocCanonicalName>.Dart.NewFlutterApp</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="RestartServer" priority="0x0140" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Restart" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Restart Analysis Server</ButtonText><CommandName>Dart.RestartAnalysisServer</CommandName><CanonicalName>.Dart.RestartAnalysisServer</CanonicalName><LocCanonicalName>.Dart.RestartAnalysisServer</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="Settings" priority="0x0150" type="Button">
+        <Parent guid="guidDartCommands" id="DartServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Settings...</ButtonText><CommandName>Dart.Settings</CommandName><CanonicalName>.Dart.Settings</CanonicalName><LocCanonicalName>.Dart.Settings</LocCanonicalName></Strings>
+      </Button>
+    </Buttons>
+    <Combos>
+      <Combo guid="guidDartCommands" id="DeviceCombo" priority="0x0010" type="DropDownCombo" defaultWidth="160" idCommandList="DeviceComboList">
+        <Parent guid="guidDartCommands" id="DartToolbarGroup" />
+        <CommandFlag>IconAndText</CommandFlag>
+        <Strings><ButtonText>Device:</ButtonText><ToolTipText>Flutter device for Run, Debug and integration tests</ToolTipText><CommandName>Dart.Device</CommandName><CanonicalName>.Dart.Device</CanonicalName><LocCanonicalName>.Dart.Device</LocCanonicalName></Strings>
+      </Combo>
+    </Combos>
+  </Commands>
+  <CommandPlacements>
+    <CommandPlacement guid="guidDartCommands" id="Run" priority="0x0020"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="Debug" priority="0x0030"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="HotReload" priority="0x0040"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="HotRestart" priority="0x0050"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="Stop" priority="0x0060"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="RunTests" priority="0x0070"><Parent guid="guidDartCommands" id="DartToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="Run" priority="0x0100"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="Debug" priority="0x0110"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="RunTestFile" priority="0x0120"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="DebugTestFile" priority="0x0130"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
+  </CommandPlacements>
+  <VisibilityConstraints>
+    <VisibilityItem guid="guidDartCommands" id="RunTestFile" context="guidDartEditorContext" />
+    <VisibilityItem guid="guidDartCommands" id="DebugTestFile" context="guidDartEditorContext" />
+  </VisibilityConstraints>
+  <Symbols>
+    <GuidSymbol name="guidDartPackage" value="{5e9a1c37-2b4d-4f6e-8a0c-6d8f0b2e4a91}" />
+    <GuidSymbol name="guidDartEditorContext" value="{7f1b3d59-4c6e-4a80-9b2d-8e0a2c4f6b13}" />
+    <GuidSymbol name="guidDartCommands" value="{a2c4e6f8-0b1d-4e3f-9a5c-7e9b1d3f5a72}">
+      <IDSymbol name="DartToolsGroup" value="0x1000" />
+      <IDSymbol name="DartRunGroup" value="0x1001" />
+      <IDSymbol name="DartTestGroup" value="0x1002" />
+      <IDSymbol name="DartServiceGroup" value="0x1003" />
+      <IDSymbol name="DartToolbarGroup" value="0x1004" />
+      <IDSymbol name="DartEditorGroup" value="0x1005" />
+      <IDSymbol name="DartToolbar" value="0x2000" />
+      <IDSymbol name="DartMenu" value="0x2001" />
+      <IDSymbol name="Run" value="0x0100" />
+      <IDSymbol name="Debug" value="0x0101" />
+      <IDSymbol name="Stop" value="0x0102" />
+      <IDSymbol name="HotReload" value="0x0103" />
+      <IDSymbol name="HotRestart" value="0x0104" />
+      <IDSymbol name="SelectDevice" value="0x0105" />
+      <IDSymbol name="RunTests" value="0x0110" />
+      <IDSymbol name="RunTestFile" value="0x0111" />
+      <IDSymbol name="DebugTestFile" value="0x0112" />
+      <IDSymbol name="RunIntegrationTests" value="0x0113" />
+      <IDSymbol name="PubGet" value="0x0120" />
+      <IDSymbol name="Analyze" value="0x0121" />
+      <IDSymbol name="Cancel" value="0x0122" />
+      <IDSymbol name="NewFlutterApp" value="0x0123" />
+      <IDSymbol name="RestartServer" value="0x0124" />
+      <IDSymbol name="Settings" value="0x0125" />
+      <IDSymbol name="DeviceCombo" value="0x0130" />
+      <IDSymbol name="DeviceComboList" value="0x0131" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

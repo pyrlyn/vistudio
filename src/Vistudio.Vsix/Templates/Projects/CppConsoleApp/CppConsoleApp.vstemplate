@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>C++ Console App (CMake + Conan)</Name>
+    <Description>A C++20 program built with CMake, with Conan for packages. Visual C++ provides IntelliSense; press F5 to debug it.</Description>
+    <ProjectType>VistudioLanguages</ProjectType>
+    <TemplateID>Vistudio.CppConsoleApp</TemplateID>
+    <SortOrder>50</SortOrder>
+    <Icon>CppProject.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>CppApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>C++</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="project.cppproj" TargetFileName="$projectname$.cppproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

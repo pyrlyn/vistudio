@@ -1,14 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Utilities;
 using Newtonsoft.Json.Linq;
-using StreamJsonRpc;
 using Vistudio.Core;
 using Vistudio.Core.Zig;
 
@@ -21,65 +19,26 @@ namespace Vistudio.Zig
     /// </summary>
     [Export(typeof(ILanguageClient)), Export(typeof(ZigLanguageClient))]
     [ContentType(ZigContentTypes.Zig), PartCreationPolicy(CreationPolicy.Shared)]
-    internal sealed class ZigLanguageClient : ILanguageClient, ILanguageClientCustomMessage2
+    internal sealed class ZigLanguageClient : StdioLanguageClient
     {
         private readonly ZigEnvironment environment;
-        private readonly SemaphoreSlim processGate = new SemaphoreSlim(1, 1);
-        private OwnedProcess? server;
-        private Task? errorPump;
-        private bool loaded;
-        private JsonRpc? rpc;
-        private volatile bool initialized;
 
         [ImportingConstructor]
-        public ZigLanguageClient(ZigEnvironment environment)
+        public ZigLanguageClient(ZigEnvironment environment) : base(environment)
         {
             this.environment = environment;
-            environment.WorkspaceChanged += OnWorkspaceChangedAsync;
             ZigEnvironment.SettingsChanged += (_, __) => RestartAsync().Forget();
         }
 
-        /// <summary>
-        /// Visual Studio waits for workspace-change handlers while it closes a folder, also on exit; restarting ZLS
-        /// inside the handler started a new server during shutdown and hung the exit (Visual Studio 18). Closing the
-        /// folder keeps the running server (Visual Studio stops it on exit); opening a folder restarts it detached.
-        /// </summary>
-        private async Task OnWorkspaceChangedAsync()
-        {
-            if (await environment.GetFolderAsync() == null) return;
-            RestartAsync().Forget();
-        }
-
-        public string Name => "Zig (Vistudio, ZLS)";
+        public override string Name => "Zig (Vistudio, ZLS)";
         // No configuration sections: ZLS reads zls.json (--config-path); see ZigLspCompatibility.
-        public IEnumerable<string>? ConfigurationSections => null;
-        public object? InitializationOptions => null;
-        public IEnumerable<string> FilesToWatch => new[] { "**/*.zig", "**/*.zon" };
-        public bool ShowNotificationOnInitializeFailed => true;
-        public event AsyncEventHandler<EventArgs>? StartAsync;
-        public event AsyncEventHandler<EventArgs>? StopAsync;
+        public override IEnumerable<string> FilesToWatch => new[] { "**/*.zig", "**/*.zon" };
+        public override object? MiddleLayer => new ZigDiagnosticsMiddleLayer();
+        protected override string ServerLabel => "ZLS";
+        protected override string InitializeFailedMessage => "ZLS initialization failed. Check the Zig Output pane and Tools > Options > Zig (ZLS must match the Zig version).";
 
-        public object? MiddleLayer => new ZigDiagnosticsMiddleLayer();
-        public object? CustomMessageTarget => null;
-        public Task AttachForCustomMessageAsync(JsonRpc jsonRpc) { rpc = jsonRpc; return Task.CompletedTask; }
-
-        /// <summary>True when ZLS answers editor requests (CodeLens counts).</summary>
-        internal bool IsServerReady => rpc != null && initialized;
-
-        /// <summary>An LSP request for editor features such as CodeLens counts; null until ZLS is initialized.</summary>
-        internal async Task<JToken?> RequestAsync(string method, object args, CancellationToken token)
-        {
-            var connection = rpc;
-            if (connection == null || !initialized) return null;
-            return await connection.InvokeWithParameterObjectAsync<JToken?>(method, args, token).ConfigureAwait(false);
-        }
-
-        public async Task OnLoadedAsync()
-        {
-            loaded = true;
-            LogToolchainAsync().Forget();
-            await StartConfiguredAsync();
-        }
+        // A changed zig.exe path logs its version again on restart.
+        protected override void OnStarting() => LogToolchainAsync().Forget();
 
         /// <summary>Logs the zig version and std folder from <c>zig env</c> when the first Zig document opens (also without ZLS).</summary>
         private async Task LogToolchainAsync()
@@ -93,98 +52,25 @@ namespace Vistudio.Zig
             catch (Exception e) { environment.Log("zig env: " + e.Message); }
         }
 
-        private async Task StartConfiguredAsync()
+        protected override bool CanStart()
         {
-            await environment.GetFolderAsync(); // Applies this window's .vs\settings.json before reading settings.
-            if (string.IsNullOrWhiteSpace(ZigSettings.Load().LanguageServerPath))
-            {
-                environment.Log("Zig completion and navigation are off: set Tools > Options > Zig > ZLS path to a zls.exe matching your Zig version. Coloring, ast-check and builds work without it.");
-                return;
-            }
-            if (StartAsync != null) await StartAsync.InvokeAsync(this, EventArgs.Empty);
+            if (!string.IsNullOrWhiteSpace(ZigSettings.Load().LanguageServerPath)) return true;
+            environment.Log("Zig completion and navigation are off: set Tools > Options > Zig > ZLS path to a zls.exe matching your Zig version. Coloring, ast-check and builds work without it.");
+            return false;
         }
 
-        public async Task<Connection?> ActivateAsync(CancellationToken token)
+        protected override LanguageServerLaunch CreateLaunch(string root)
         {
-            var root = await environment.GetFolderAsync() ?? Path.GetTempPath();
             var settings = ZigSettings.Load();
             var zig = ZigToolchain.FindExecutable(settings);
             if (zig == null) environment.Log("ZLS: zig.exe was not found; set Tools > Options > Zig > zig.exe path for std completion and build.zig modules.");
             var library = ZigToolchain.LibDirectory(settings);
             var start = ZigLanguageServer.Create(settings, zig, library, root, ZigLanguageServer.ConfigFolderFor(WorkspaceSettings.CurrentRoot));
-            await processGate.WaitAsync(token).ConfigureAwait(false);
-            try
-            {
-                await CleanupAsync().ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                var process = server = new OwnedProcess(start);
-                errorPump = OwnedProcess.PumpAsync(process.Error, line => environment.Log("[ZLS] " + line));
-                ObserveExitAsync(process).Forget();
-                environment.Log("Starting ZLS (" + settings.LanguageServerPath + ") in " + root + (zig == null ? "" : " with " + zig));
-                return new Connection(process.Output, new KotlinInitializeStream(process.Input, ZigLspCompatibility.NormalizeInitialize));
-            }
-            finally { processGate.Release(); }
+            return new LanguageServerLaunch(start, "Starting ZLS (" + settings.LanguageServerPath + ") in " + root + (zig == null ? "" : " with " + zig),
+                ZigLspCompatibility.NormalizeInitialize);
         }
 
-        private async Task ObserveExitAsync(OwnedProcess process)
-        {
-#pragma warning disable VSTHRD003 // Process completion has no UI-thread dependency.
-            try { environment.Log("ZLS exited with code " + await process.Exit.ConfigureAwait(false) + "."); }
-#pragma warning restore VSTHRD003
-            catch (Exception e) { environment.Log("ZLS process: " + e.Message); }
-        }
-
-        public Task OnServerInitializedAsync()
-        {
-            environment.Log("ZLS initialized.");
-            initialized = true;
-            ZigCodeLensRefresh.InvalidateAll();
-            return Task.CompletedTask;
-        }
-
-        public async Task<InitializationFailureContext?> OnServerInitializeFailedAsync(ILanguageClientInitializationInfo initializationState)
-        {
-            await StopProcessAsync().ConfigureAwait(false);
-            return new InitializationFailureContext { FailureMessage = "ZLS initialization failed. Check the Zig Output pane and Tools > Options > Zig (ZLS must match the Zig version)." };
-        }
-
-        /// <summary>Restarts ZLS after a settings or workspace change (or the Restart command).</summary>
-        internal async Task RestartAsync()
-        {
-            if (!loaded) return;
-            LogToolchainAsync().Forget(); // a changed zig.exe path logs its version again
-            if (StopAsync != null)
-            {
-                var stop = StopAsync.InvokeAsync(this, EventArgs.Empty);
-                if (await Task.WhenAny(stop, Task.Delay(3000)).ConfigureAwait(false) == stop) await stop.ConfigureAwait(false);
-                else stop.Forget();
-            }
-            await StopProcessAsync().ConfigureAwait(false);
-            await StartConfiguredAsync();
-        }
-
-        private async Task StopProcessAsync()
-        {
-            await processGate.WaitAsync().ConfigureAwait(false);
-            try { await CleanupAsync().ConfigureAwait(false); }
-            finally { processGate.Release(); }
-        }
-
-        private async Task CleanupAsync()
-        {
-            initialized = false;
-            if (server == null) return;
-            await server.StopAsync().ConfigureAwait(false);
-            if (errorPump != null)
-            {
-                try { await errorPump.ConfigureAwait(false); }
-                catch (IOException) { }
-                catch (ObjectDisposedException) { }
-            }
-            server.Dispose();
-            server = null;
-            errorPump = null;
-        }
+        protected override void OnInitialized() => ZigCodeLensRefresh.InvalidateAll();
     }
 
     /// <summary>Initialize request adjustments for ZLS under the Visual Studio LSP client.</summary>

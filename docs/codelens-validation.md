@@ -65,7 +65,7 @@ Not verified natively yet: `overrides Base.member`, `N overrides` and `N actuals
 ## Findings during validation
 
 - VisualStudio.Extensibility parts filtered by the `kotlin` document type or by a `**/*.kt` glob were not attached reliably: Visual Studio assigns the content type after the view opens. The parts apply to the `text` document type and filter by file extension in code.
-- The IDE must not inherit `NoDefaultCurrentDirectoryInExePath` (as in the other native scripts); with it, the Gradle build behind Run failed with exit 1.
+- The IDE must not inherit `NoDefaultCurrentDirectoryInExePath` (as in the other native scripts); with it, the Gradle build behind Run failed with exit 1. Since 2026-11-14 `GradleCommand` starts the wrapper as `.\gradlew.bat`, so the variable no longer breaks Gradle commands; the native scripts still clear it and were not re-run after the fix.
 
 ## Not verified
 

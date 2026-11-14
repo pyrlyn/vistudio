@@ -67,9 +67,11 @@ namespace Vistudio.Core
             root = Path.GetFullPath(root);
             if (!File.Exists(Path.Combine(root, "gradlew.bat")))
                 throw new FileNotFoundException("No gradlew.bat in the Gradle root. Open the wrapper's folder or set Gradle root in Kotlin settings.");
+            // ".\" keeps the wrapper resolvable when NoDefaultCurrentDirectoryInExePath is set (Windows hardening):
+            // cmd.exe then skips the current directory for bare command names.
             var info = ProcessCommands.CreateRedirected(
                 Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                "/d /v:off /s /c \"\"gradlew.bat\" --console=plain --no-daemon " + arguments + "\"", root);
+                "/d /v:off /s /c \"\".\\gradlew.bat\" --console=plain --no-daemon " + arguments + "\"", root);
             if (!string.IsNullOrWhiteSpace(javaHome))
             {
                 javaHome = Path.GetFullPath(javaHome);

@@ -59,7 +59,7 @@ Still verified only at the Gradle level, not in the window: "no JVM target" and 
 ## Notes
 
 - Gradle downloads on this machine need `-Djavax.net.ssl.trustStoreType=Windows-ROOT` (through `JAVA_TOOL_OPTIONS`) because a TLS-inspecting antivirus certificate is only in the Windows store. This applied only to the first download of the sample's dependencies and is not part of the project.
-- The agent shell sets `NoDefaultCurrentDirectoryInExePath=1`, which makes `cmd` ignore `gradlew.bat` in the current directory. Tests and IDE runs in this validation unset it; Visual Studio started normally does not have it.
+- The agent shell sets `NoDefaultCurrentDirectoryInExePath=1`, which makes `cmd` ignore `gradlew.bat` in the current directory. Tests and IDE runs in this validation unset it; Visual Studio started normally does not have it. Since 2026-11-14 `GradleCommand` starts the wrapper as `.\gradlew.bat`, so the variable no longer breaks Gradle commands; the native scripts still clear it and were not re-run after the fix.
 
 ## Repeat
 

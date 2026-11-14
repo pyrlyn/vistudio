@@ -6,6 +6,12 @@ Windows x64, Visual Studio Community 2026 18.12.12405.243, classic VSSDK contrac
 
 ## Completed checks
 
+### Gradle wrapper and NoDefaultCurrentDirectoryInExePath
+
+Date: 2026-11-14. With `NoDefaultCurrentDirectoryInExePath=1` (a Windows hardening setting, also set by the agent shell), `cmd.exe` does not look in the current directory for bare command names, so `GradleCommand` (`cmd /c "gradlew.bat" ...` in the Gradle root) failed with `"gradlew.bat" is not recognized`. Every Gradle command of the extension goes through `GradleCommand.CreateCore` (build, model import, task discovery, Compose preview), and the full default unit run stopped in `ProjectFileTests` ("Selected JDK reaches the wrapper process"), which earlier status notes recorded as a pre-existing failure. The wrapper is now started as `.\gradlew.bat`, which `cmd.exe` resolves with or without the variable. `ProjectFileTests` now prints the wrapper's exit code and output when that check fails.
+
+Validation performed: `Vistudio.Tests.exe` (Debug) with `NoDefaultCurrentDirectoryInExePath=1` set: default run 1086 assertions, `--target-features` 830, `--etw` 78, `--structure` 41, `--codelens` 121, `--zig` 125 and `--mise` 74 (live parts skipped: no zig.exe or mise.exe on the machine), `--jvm-languages` 147, `--template-checks` 66, all exit 0; VSIX Debug build and `verify-vsix.ps1` pass. The build was made from a copy of the working tree without the in-progress `src/Vistudio.Core/Dart` folder of another session, which did not compile at the time. Not run: the native Visual Studio scripts (`verify-solution-project.ps1`, `verify-templates.ps1`, `verify-kotlin-targets-native.ps1`) and the real-Gradle scripts; they still clear the variable.
+
 ### Java alongside Kotlin (T30)
 
 Environment: Kotlin language server 271.2085.0 (263.7084.0 has expired and exits at startup), Eclipse JDT LS 1.61.0 with Temurin 21.0.12 (the copy shipped in the VS Code Java extension 1.56.0), Gradle JDK 11, real Gradle sample `samples/kotlin-java-jvm` (`gradlew build run` prints `total=11 Kotlin:11`). Task artifact: `artifacts/Vistudio.Kotlin.JavaInterop.vsix` (Debug build).

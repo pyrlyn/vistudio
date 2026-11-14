@@ -64,7 +64,7 @@ internal static class ProjectFileTests
         var lines = new List<string>();
         var command = GradleCommand.Create(effective.GradleRoot, effective.GradleJavaHome, GradleCommand.ParseTasks(effective.BuildTasks));
         var exit = await OwnedProcess.RunAsync(command, line => { lock (lines) lines.Add(line); }, CancellationToken.None);
-        check(exit == 0 && lines.Contains("JAVA_HOME=" + second) && lines.Any(l => l.EndsWith(":app:build")), "Selected JDK reaches the wrapper process, without executing a JDK during inventory");
+        check(exit == 0 && lines.Contains("JAVA_HOME=" + second) && lines.Any(l => l.EndsWith(":app:build")), "Selected JDK reaches the wrapper process, without executing a JDK during inventory (exit " + exit + ", output: " + string.Join(" | ", lines) + ")");
         reloaded.SetJdk(""); reloaded.RefreshTools(); reloaded.Save();
         effective.GradleJavaHome = first;
         reloaded.ApplyTo(effective);

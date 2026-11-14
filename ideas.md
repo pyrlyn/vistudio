@@ -2,5 +2,3 @@
 
 Possible future scope, not approved: Android device debugging. (Kotlin/JS, Kotlin/Wasm and Kotlin/Native debugging moved to roadmap.md.)
 
-Start `gradlew.bat` by absolute path so Gradle commands also work when `NoDefaultCurrentDirectoryInExePath` is set.
-

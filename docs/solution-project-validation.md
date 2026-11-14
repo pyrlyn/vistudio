@@ -69,7 +69,7 @@ Not validated for T17: F5 when the language server has not started yet in the se
 - `GradleModelTests`: `SourceRoot` items are validated (absolute path, `Sources`/`Resources`, known module).
 - `tests/test-gradle-import.ps1` (real Gradle 8.14.7 wrapper, Microsoft JDK 11.0.31, Kotlin JVM plugin 2.4.21, two modules): 16 checks pass, including the new ones: Gradle reports `src/main/kotlin` source roots for `:app` and `:shared`, the tree lists real `.kt` files of `:app`, and `runtimeClasspath` shows `kotlin-stdlib:2.4.21`.
 
-The agent shell sets `NoDefaultCurrentDirectoryInExePath=1`, which stops `cmd.exe` from starting `gradlew.bat` from the Gradle root; the existing wrapper tests then fail with `"gradlew.bat" is not recognized`. All runs above clear this variable first. A normal Visual Studio session does not set it.
+The agent shell sets `NoDefaultCurrentDirectoryInExePath=1`, which stops `cmd.exe` from starting `gradlew.bat` from the Gradle root; the existing wrapper tests then fail with `"gradlew.bat" is not recognized`. All runs above clear this variable first. A normal Visual Studio session does not set it. Since 2026-11-14 `GradleCommand` starts the wrapper as `.\gradlew.bat`, so the variable no longer breaks Gradle commands; the native scripts still clear it and were not re-run after the fix.
 
 ## Native Visual Studio acceptance
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Kotlin Multiplatform App</Name>
+    <Description>A Kotlin Multiplatform application with shared code and the targets you choose: JVM, JavaScript (Node.js), WebAssembly (Node.js) and Windows native (mingwX64).</Description>
+    <ProjectType>Kotlin</ProjectType>
+    <TemplateID>Vistudio.Kotlin.Multiplatform</TemplateID>
+    <SortOrder>40</SortOrder>
+    <Icon>Kotlin.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>KotlinMultiplatformApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Kotlin</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <PlatformTag>Linux</PlatformTag>
+    <PlatformTag>macOS</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+    <ProjectTypeTag>Web</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="vistudio.kotlinproj" TargetFileName="vistudio.kotlinproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

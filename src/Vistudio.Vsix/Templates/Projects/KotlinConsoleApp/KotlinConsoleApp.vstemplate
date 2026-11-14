@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Kotlin Console App (JVM)</Name>
+    <Description>A Kotlin/JVM command-line application built with Gradle, with a kotlin.test unit test. Press F5 to debug it.</Description>
+    <ProjectType>Kotlin</ProjectType>
+    <TemplateID>Vistudio.Kotlin.JvmConsole</TemplateID>
+    <SortOrder>10</SortOrder>
+    <Icon>Kotlin.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>KotlinApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Kotlin</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <PlatformTag>Linux</PlatformTag>
+    <PlatformTag>macOS</PlatformTag>
+    <ProjectTypeTag>Console</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="vistudio.kotlinproj" TargetFileName="vistudio.kotlinproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

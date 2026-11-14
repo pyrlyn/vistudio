@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Kotlin Class Library (JVM)</Name>
+    <Description>A Kotlin/JVM library built with Gradle (java-library), with a kotlin.test unit test.</Description>
+    <ProjectType>Kotlin</ProjectType>
+    <TemplateID>Vistudio.Kotlin.JvmLibrary</TemplateID>
+    <SortOrder>20</SortOrder>
+    <Icon>Kotlin.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>KotlinLibrary</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Kotlin</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <PlatformTag>Linux</PlatformTag>
+    <PlatformTag>macOS</PlatformTag>
+    <ProjectTypeTag>Library</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="vistudio.kotlinproj" TargetFileName="vistudio.kotlinproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

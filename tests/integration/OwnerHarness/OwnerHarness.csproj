@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net472</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json"><HintPath>../../../tests/Vistudio.Tests/bin/Release/net472/Newtonsoft.Json.dll</HintPath></Reference>
+    <Compile Include="../../../src/Vistudio.Vsix/Debug/KotlinCompletionQuery.cs" Link="KotlinCompletionQuery.cs" />
+    <Compile Include="../../../src/Vistudio.Vsix/Debug/KotlinSemanticCompletion.cs" Link="KotlinSemanticCompletion.cs" />
+    <Compile Include="../../../src/Vistudio.Vsix/Debug/KotlinCompletionIsolation.cs" Link="KotlinCompletionIsolation.cs" />
+    <Compile Include="../../../src/Vistudio.Vsix/Debug/KotlinMemberExtensions.cs" Link="KotlinMemberExtensions.cs" />
+  </ItemGroup>
+</Project>
+

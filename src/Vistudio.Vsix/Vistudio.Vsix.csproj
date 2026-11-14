@@ -1,0 +1,83 @@
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <Version>0.1.0</Version>
+    <MinimumVisualStudioVersion>18.0</MinimumVisualStudioVersion>
+    <DeployExtension>false</DeployExtension>
+    <!-- CodeLens parts use VisualStudio.Extensibility in-process next to the VSSDK package. -->
+    <VssdkCompatibleExtension>true</VssdkCompatibleExtension>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.14.60" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Workspace.VSIntegration" Version="17.12.19" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Debugger.DebugAdapterHost.Interfaces" Version="16.6.40406.1" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="18.12.1603" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="18.12.1606" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.12.1606" PrivateAssets="all" />
+    <ProjectReference Include="../Vistudio.Core/Vistudio.Core.csproj" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Design" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <VSCTCompile Include="Commands.vsct" ResourceName="Menus.ctmenu" />
+    <!-- Zig commands: own menu resource for ZigPackage (T48). -->
+    <VSCTCompile Include="Zig/ZigCommands.vsct" ResourceName="ZigMenus.ctmenu" />
+    <!-- mise commands: own menu resource for MisePackage (T51). -->
+    <VSCTCompile Include="Mise/MiseCommands.vsct" ResourceName="MiseMenus.ctmenu" />
+    <Content Include="Grammars/Zig.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Registration/ZigFiles.pkgdef" IncludeInVSIX="true"><Link>ZigFiles.pkgdef</Link></Content>
+    <None Update="source.extension.vsixmanifest"><SubType>Designer</SubType></None>
+    <Content Include="Grammars/Kotlin.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Grammars/Properties.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Build/DiscoverTasks.gradle" IncludeInVSIX="true" />
+    <Content Include="Build/ImportModel.gradle" IncludeInVSIX="true" />
+    <Content Include="Build/ComposePreview.gradle" IncludeInVSIX="true" />
+    <Content Include="Build/VistudioPreviewRenderer.java" IncludeInVSIX="true" />
+    <Content Include="Build/JavaKotlinInterop.gradle" IncludeInVSIX="true" />
+    <Resource Include="Icons/KotlinFile.xaml" />
+    <Resource Include="Icons/KotlinScript.xaml" />
+    <Resource Include="Icons/PropertiesFile.xaml" />
+    <Content Include="Icons/Kotlin.imagemanifest" IncludeInVSIX="true"><Link>Kotlin.imagemanifest</Link></Content>
+    <Content Include="Registration/KotlinFiles.pkgdef" IncludeInVSIX="true"><Link>KotlinFiles.pkgdef</Link></Content>
+    <Content Include="Registration/KotlinGrammar.pkgdef" IncludeInVSIX="true"><Link>KotlinGrammar.pkgdef</Link></Content>
+    <Content Include="Registration/KotlinDebugAdapter.pkgdef" IncludeInVSIX="true"><Link>KotlinDebugAdapter.pkgdef</Link></Content>
+    <!-- New Project templates: the Gradle wrapper of the validated samples is copied into every generated project. -->
+    <Content Include="../../samples/kotlin-jvm/gradlew.bat" IncludeInVSIX="true"><Link>Templates/Wrapper/gradlew.bat</Link></Content>
+    <Content Include="../../samples/kotlin-jvm/gradle/wrapper/gradle-wrapper.jar" IncludeInVSIX="true"><Link>Templates/Wrapper/gradle/wrapper/gradle-wrapper.jar</Link></Content>
+    <None Remove="Templates/**" />
+    <KotlinProjectTemplate Include="Templates/Projects/*/*.vstemplate" />
+  </ItemGroup>
+  <!-- Each Templates/Projects/<name> folder plus the shared icon becomes ProjectTemplates/<name>.zip in the VSIX. -->
+  <Target Name="ZipKotlinProjectTemplates" BeforeTargets="BeforeBuild" Inputs="@(KotlinProjectTemplate);Templates/Kotlin.png;Templates/Projects/*/vistudio.kotlinproj" Outputs="@(KotlinProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')">
+    <PropertyGroup><KotlinTemplateStaging>$(IntermediateOutputPath)ProjectTemplateStaging/</KotlinTemplateStaging></PropertyGroup>
+    <RemoveDir Directories="$(KotlinTemplateStaging)" />
+    <Copy SourceFiles="%(KotlinProjectTemplate.RootDir)%(KotlinProjectTemplate.Directory)%(KotlinProjectTemplate.Filename).vstemplate;%(KotlinProjectTemplate.RootDir)%(KotlinProjectTemplate.Directory)vistudio.kotlinproj;Templates/Kotlin.png" DestinationFolder="$(KotlinTemplateStaging)%(KotlinProjectTemplate.Filename)" />
+    <MakeDir Directories="$(IntermediateOutputPath)ProjectTemplates" />
+    <ZipDirectory SourceDirectory="$(KotlinTemplateStaging)%(KotlinProjectTemplate.Filename)" DestinationFile="$(IntermediateOutputPath)ProjectTemplates/%(KotlinProjectTemplate.Filename).zip" Overwrite="true" />
+  </Target>
+  <Target Name="IncludeKotlinProjectTemplates" AfterTargets="ZipKotlinProjectTemplates" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <Content Include="@(KotlinProjectTemplate->'$(IntermediateOutputPath)ProjectTemplates/%(Filename).zip')" IncludeInVSIX="true" VSIXSubPath="ProjectTemplates" />
+    </ItemGroup>
+  </Target>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <!-- Microsoft.VisualStudio.Extensibility.Build imports $(VSToolsPath)/VSSDK/Microsoft.VsSDK.targets itself. -->
+</Project>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
+  <Images>
+    <Image Guid="{6cd0eb83-fd71-470c-9717-dfa55d167c7b}" ID="1">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/KotlinFile.xaml" />
+    </Image>
+    <Image Guid="{6cd0eb83-fd71-470c-9717-dfa55d167c7b}" ID="2">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/KotlinScript.xaml" />
+    </Image>
+    <Image Guid="{6cd0eb83-fd71-470c-9717-dfa55d167c7b}" ID="3">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/PropertiesFile.xaml" />
+    </Image>
+  </Images>
+</ImageManifest>

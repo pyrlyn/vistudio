@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" /><Extern href="vsshlids.h" />
+  <Commands package="guidPackage">
+    <Menus>
+      <Menu guid="guidCommands" id="TargetMenu" type="Context"><Strings><ButtonText>Kotlin Target</ButtonText></Strings></Menu>
+    </Menus>
+    <Groups>
+      <Group guid="guidCommands" id="TargetGroup" priority="0x0100"><Parent guid="guidCommands" id="TargetMenu" /></Group>
+      <Group guid="guidCommands" id="KotlinGroup" priority="0x0600"><Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" /></Group>
+      <Group guid="guidCommands" id="ProjectGroup" priority="0x0150"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_PROJNODE" /></Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidCommands" id="CreateProject" priority="0x0160" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Create or Open .kotlinproj</ButtonText><CommandName>Kotlin.CreateOrOpenProject</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectImport" priority="0x0100" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Import Gradle Model</ButtonText><CommandName>Kotlin.Project.ImportGradleModel</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectTest" priority="0x0110" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Run Tests with Gradle</ButtonText><CommandName>Kotlin.Project.RunTests</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectRun" priority="0x0120" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Run with Gradle</ButtonText><CommandName>Kotlin.Project.Run</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectTasks" priority="0x0130" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Gradle Tasks...</ButtonText><CommandName>Kotlin.Project.GradleTasks</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectCancel" priority="0x0140" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Cancel Gradle</ButtonText><CommandName>Kotlin.Project.CancelGradle</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ProjectEdit" priority="0x0150" type="Button"><Parent guid="guidCommands" id="ProjectGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag><Strings><ButtonText>Edit Project File</ButtonText><CommandName>Kotlin.Project.EditProjectFile</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="TargetBuild" priority="0x0100" type="Button"><Parent guid="guidCommands" id="TargetGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag><Strings><ButtonText>Build Target</ButtonText><CommandName>Kotlin.Target.Build</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="TargetRun" priority="0x0110" type="Button"><Parent guid="guidCommands" id="TargetGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag><Strings><ButtonText>Run Target</ButtonText><CommandName>Kotlin.Target.Run</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="TargetTest" priority="0x0120" type="Button"><Parent guid="guidCommands" id="TargetGroup" /><CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>TextChanges</CommandFlag><Strings><ButtonText>Test Target</ButtonText><CommandName>Kotlin.Target.Test</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="ImportModel" priority="0x0170" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Import Gradle project</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Run" priority="0x0125" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Run with Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Tasks" priority="0x0126" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Gradle targets and tasks...</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Build" priority="0x0100" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Build with Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Clean" priority="0x0110" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Clean with Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Test" priority="0x0120" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Test with Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Cancel" priority="0x0130" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Cancel Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="Restart" priority="0x0140" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Restart Language Server</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="ComposePreview" priority="0x0145" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Compose Preview</ButtonText><CommandName>Kotlin.ComposePreview</CommandName></Strings></Button>
+      <Button guid="guidCommands" id="Options" priority="0x0150" type="Button"><Parent guid="guidCommands" id="KotlinGroup" /><Strings><ButtonText>Kotlin: Settings</ButtonText></Strings></Button>
+    </Buttons>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidPackage" value="{6cc1f5c0-99c8-43c6-b605-8dac96970119}" />
+    <GuidSymbol name="guidCommands" value="{75625a1a-f6e1-42aa-bf3f-90432c756124}">
+      <IDSymbol name="CreateProject" value="0x010A" />
+      <IDSymbol name="ProjectGroup" value="0x1001" />
+      <IDSymbol name="ProjectImport" value="0x0200" /><IDSymbol name="ProjectTest" value="0x0201" /><IDSymbol name="ProjectRun" value="0x0202" />
+      <IDSymbol name="ProjectTasks" value="0x0203" /><IDSymbol name="ProjectCancel" value="0x0204" /><IDSymbol name="ProjectEdit" value="0x0205" />
+      <IDSymbol name="TargetMenu" value="0x2000" /><IDSymbol name="TargetGroup" value="0x1002" />
+      <IDSymbol name="TargetBuild" value="0x0210" /><IDSymbol name="TargetRun" value="0x0211" /><IDSymbol name="TargetTest" value="0x0212" />
+      <IDSymbol name="ImportModel" value="0x0109" />
+      <IDSymbol name="Run" value="0x0106" /><IDSymbol name="Tasks" value="0x0107" />
+      <IDSymbol name="KotlinGroup" value="0x1000" /><IDSymbol name="Build" value="0x0100" /><IDSymbol name="Clean" value="0x0101" /><IDSymbol name="Test" value="0x0102" /><IDSymbol name="Cancel" value="0x0103" /><IDSymbol name="Restart" value="0x0104" /><IDSymbol name="Options" value="0x0105" /><IDSymbol name="ComposePreview" value="0x0108" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

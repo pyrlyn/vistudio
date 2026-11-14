@@ -1,0 +1,26 @@
+{
+  "version": "0.2.1",
+  "configurations": [
+    {
+      "type": "kotlin-jvm",
+      "name": "Kotlin JVM sample",
+      "project": "src/main/kotlin/Main.kt",
+      "mainClass": "sample.MainKt",
+      "args": []
+    },
+    {
+      "type": "kotlin-jvm",
+      "name": "Kotlin expression checks",
+      "project": "src/main/kotlin/EvaluationMain.kt",
+      "mainClass": "sample.EvaluationMainKt",
+      "args": []
+    },
+    {
+      "type": "kotlin-jvm",
+      "name": "Kotlin generic owner completion",
+      "project": "src/main/kotlin/OwnerCompletionMain.kt",
+      "mainClass": "sample.OwnerCompletionMain",
+      "args": []
+    }
+  ]
+}

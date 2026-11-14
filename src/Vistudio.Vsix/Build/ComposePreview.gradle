@@ -1,0 +1,81 @@
+// Renders Compose @Preview functions of one Kotlin source file through the owning module's JVM (desktop) target.
+// Inputs come from environment variables set by Vistudio; the explicit root guard keeps buildSrc/included builds out.
+// Lines starting with VISTUDIO_PREVIEW_ERROR report a problem the IDE shows instead of the Gradle failure text.
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def requestedRoot = System.getenv('VISTUDIO_PREVIEW_ROOT')
+    if (!requestedRoot || root.projectDir.canonicalFile != new File(requestedRoot).canonicalFile) return
+    def fail = { String message ->
+        println('VISTUDIO_PREVIEW_ERROR\t' + message.replace('\t', ' ').replace('\r', '').replace('\n', ' '))
+        throw new GradleException(message)
+    }
+    def required = { String name ->
+        def value = System.getenv(name)
+        if (!value) throw new GradleException(name + ' is required.')
+        value
+    }
+    def previewFile = new File(required('VISTUDIO_PREVIEW_FILE')).canonicalFile
+    def under = { File file, File directory -> file.path.toLowerCase().startsWith(directory.canonicalPath.toLowerCase() + File.separator) }
+
+    // The owning module is the deepest project directory that contains the file.
+    def owner = root.allprojects.findAll { under(previewFile, it.projectDir) }.max { it.projectDir.canonicalPath.length() }
+    def compilation = null
+    def problem = null
+    if (owner == null) problem = "${previewFile.name} is not inside a Gradle project of ${root.projectDir}."
+    else {
+        def kotlin = owner.extensions.findByName('kotlin')
+        def targets = kotlin == null ? [] : (kotlin.hasProperty('targets') ? kotlin.targets.toList() : (kotlin.hasProperty('target') ? [kotlin.target] : []))
+        def jvmTargets = targets.findAll { it.platformType.name() == 'jvm' }
+        if (kotlin == null) problem = "Module ${owner.path} does not apply a Kotlin plugin."
+        else if (jvmTargets.isEmpty()) problem = "Module ${owner.path} has no JVM (desktop) target. Compose previews render on the JVM: add jvm(\"desktop\") with compose.desktop.currentOs."
+        else {
+            def contains = { candidate ->
+                candidate.allKotlinSourceSets.any { sourceSet -> sourceSet.kotlin.srcDirs.any { under(previewFile, it) } }
+            }
+            def main = jvmTargets.collect { it.compilations.findByName('main') }.findAll { it != null }
+            compilation = main.find { contains(it) }
+            if (compilation == null) problem = "${previewFile.name} is not compiled by a JVM target of ${owner.path} (targets: ${jvmTargets*.name.join(', ')}). " +
+                'Previews in commonMain or a JVM/desktop source set can be rendered.'
+        }
+    }
+
+    def rendererSource = new File(required('VISTUDIO_PREVIEW_RENDERER')).canonicalFile
+    def rendererClasses = new File(root.layout.buildDirectory.get().asFile, 'vistudio/preview-renderer')
+    def compileRenderer = root.tasks.register('vistudioCompilePreviewRenderer6cc1f5c0', JavaCompile) {
+        source = root.files(rendererSource).asFileTree
+        classpath = root.files()
+        destinationDirectory.set(rendererClasses)
+        options.sourcepath = root.files()
+        options.annotationProcessorPath = root.files()
+        sourceCompatibility = '11'
+        targetCompatibility = '11'
+        options.encoding = 'UTF-8'
+        options.release.set(JavaVersion.current().isJava11Compatible() && JavaVersion.current() != JavaVersion.VERSION_11 ? 11 : null)
+    }
+
+    root.tasks.register('vistudioComposePreview6cc1f5c0', JavaExec) {
+        if (problem != null) {
+            doFirst { fail(problem) }
+            mainClass.set('VistudioPreviewRenderer')
+            return
+        }
+        dependsOn(compileRenderer)
+        def runtime = compilation.runtimeDependencyFiles
+        classpath = root.files(rendererClasses) + compilation.output.allOutputs + runtime
+        mainClass.set('VistudioPreviewRenderer')
+        args(required('VISTUDIO_PREVIEW_REQUEST'), required('VISTUDIO_PREVIEW_OUTPUT'))
+        jvmArgs('-Djava.awt.headless=true', '-Dskiko.renderApi=SOFTWARE')
+        // Run on the module's Java toolchain when it declares one; otherwise on Gradle's JVM.
+        def java = owner.extensions.findByName('java')
+        def toolchains = owner.extensions.findByName('javaToolchains')
+        if (java != null && toolchains != null && java.toolchain.languageVersion.isPresent())
+            javaLauncher.set(toolchains.launcherFor(java.toolchain))
+        doFirst {
+            println("VISTUDIO_PREVIEW_MODULE\t${owner.path}\t${compilation.target.name}")
+            def names = runtime.files.collect { it.name }
+            if (!names.any { it.startsWith('ui-desktop') || it.startsWith('skiko-awt') })
+                fail("The ${compilation.target.name} target of ${owner.path} has no Compose UI for desktop on its runtime classpath. " +
+                    'Apply the Compose plugins and add compose.desktop.currentOs to its source set.')
+        }
+    }
+}

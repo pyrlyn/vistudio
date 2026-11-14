@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net472</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Vistudio.Core/Vistudio.Core.csproj" /><ProjectReference Include="../../src/Vistudio.Etw/Vistudio.Etw.csproj" /></ItemGroup>
+  <ItemGroup>
+    <!-- Same JSON library/version already supplied by the Visual Studio SDK. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- .NET Framework assemblies: CodeLens tests build a sources jar. -->
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/KotlinLspCompatibility.cs" Link="KotlinLspCompatibility.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/KotlinInitializeStream.cs" Link="KotlinInitializeStream.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinDapSourceStream.cs" Link="KotlinDapSourceStream.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinDapSession.cs" Link="KotlinDapSession.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinEvaluation.cs" Link="KotlinEvaluation.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinCompletionQuery.cs" Link="KotlinCompletionQuery.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinSemanticCompletion.cs" Link="KotlinSemanticCompletion.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinMemberExtensions.cs" Link="KotlinMemberExtensions.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinCompletionIsolation.cs" Link="KotlinCompletionIsolation.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/KotlinServerCompatibility.cs" Link="KotlinServerCompatibility.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinDapInputStream.cs" Link="KotlinDapInputStream.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Debug/KotlinJvmLaunch.cs" Link="KotlinJvmLaunch.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/JavaLspCompatibility.cs" Link="JavaLspCompatibility.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/KotlinServerLifecycle.cs" Link="KotlinServerLifecycle.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/InlayHintConfiguration.cs" Link="InlayHintConfiguration.cs" />
+    <Compile Include="../../src/Vistudio.Vsix/Language/LspConfigurationReader.cs" Link="LspConfigurationReader.cs" />
+  </ItemGroup>
+</Project>

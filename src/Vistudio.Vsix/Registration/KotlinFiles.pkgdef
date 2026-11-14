@@ -1,0 +1,13 @@
+[$RootKey$\Editors\{8B382828-6202-11D1-8870-0000F87579D2}\Extensions]
+"kt"=dword:00000064
+"kts"=dword:00000064
+"properties"=dword:00000064
+
+[$RootKey$\ShellFileAssociations\.kt]
+"DefaultIconMoniker"="6cd0eb83-fd71-470c-9717-dfa55d167c7b:1"
+
+[$RootKey$\ShellFileAssociations\.kts]
+"DefaultIconMoniker"="6cd0eb83-fd71-470c-9717-dfa55d167c7b:2"
+
+[$RootKey$\ShellFileAssociations\.properties]
+"DefaultIconMoniker"="6cd0eb83-fd71-470c-9717-dfa55d167c7b:3"

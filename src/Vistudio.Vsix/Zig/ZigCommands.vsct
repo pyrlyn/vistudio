@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Zig commands (ZigPackage). Compiled to its own menu resource so Commands.vsct and KotlinPackage are untouched. -->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" /><Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+  <Commands package="guidZigPackage">
+    <Menus>
+      <Menu guid="guidZigCommands" id="ZigToolbar" type="Toolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings><ButtonText>Zig</ButtonText><CommandName>Zig</CommandName></Strings>
+      </Menu>
+      <Menu guid="guidZigCommands" id="ZigMenu" priority="0x0610" type="Menu">
+        <Parent guid="guidZigCommands" id="ZigToolsGroup" />
+        <Strings><ButtonText>Zig</ButtonText><CommandName>Zig</CommandName></Strings>
+      </Menu>
+    </Menus>
+    <Groups>
+      <Group guid="guidZigCommands" id="ZigToolsGroup" priority="0x0610"><Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" /></Group>
+      <Group guid="guidZigCommands" id="ZigBuildGroup" priority="0x0100"><Parent guid="guidZigCommands" id="ZigMenu" /></Group>
+      <Group guid="guidZigCommands" id="ZigServiceGroup" priority="0x0200"><Parent guid="guidZigCommands" id="ZigMenu" /></Group>
+      <Group guid="guidZigCommands" id="ZigToolbarGroup" priority="0x0100"><Parent guid="guidZigCommands" id="ZigToolbar" /></Group>
+      <Group guid="guidZigCommands" id="ZigEditorGroup" priority="0x0700"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" /></Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidZigCommands" id="BuildProject" priority="0x0100" type="Button">
+        <Parent guid="guidZigCommands" id="ZigBuildGroup" />
+        <Icon guid="ImageCatalogGuid" id="BuildSolution" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Build Project (zig build)</ButtonText><ToolTipText>Run zig build with the selected step</ToolTipText><CommandName>Zig.BuildProject</CommandName><CanonicalName>.Zig.BuildProject</CanonicalName><LocCanonicalName>.Zig.BuildProject</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="BuildFile" priority="0x0110" type="Button">
+        <Parent guid="guidZigCommands" id="ZigBuildGroup" />
+        <Icon guid="ImageCatalogGuid" id="BuildSelection" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Build File (zig build-obj)</ButtonText><ToolTipText>Compile the active Zig file to an object file</ToolTipText><CommandName>Zig.BuildFile</CommandName><CanonicalName>.Zig.BuildFile</CanonicalName><LocCanonicalName>.Zig.BuildFile</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="RunFile" priority="0x0120" type="Button">
+        <Parent guid="guidZigCommands" id="ZigBuildGroup" />
+        <Icon guid="ImageCatalogGuid" id="Run" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Run File (zig run)</ButtonText><ToolTipText>Compile and run the active Zig file</ToolTipText><CommandName>Zig.RunFile</CommandName><CanonicalName>.Zig.RunFile</CanonicalName><LocCanonicalName>.Zig.RunFile</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="Cancel" priority="0x0130" type="Button">
+        <Parent guid="guidZigCommands" id="ZigBuildGroup" />
+        <Icon guid="ImageCatalogGuid" id="Stop" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Cancel</ButtonText><ToolTipText>Stop the running Zig command</ToolTipText><CommandName>Zig.Cancel</CommandName><CanonicalName>.Zig.Cancel</CanonicalName><LocCanonicalName>.Zig.Cancel</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="RefreshSteps" priority="0x0140" type="Button">
+        <Parent guid="guidZigCommands" id="ZigBuildGroup" />
+        <Icon guid="ImageCatalogGuid" id="Refresh" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Refresh Build Steps</ButtonText><ToolTipText>List build.zig steps (zig build -l)</ToolTipText><CommandName>Zig.RefreshBuildSteps</CommandName><CanonicalName>.Zig.RefreshBuildSteps</CanonicalName><LocCanonicalName>.Zig.RefreshBuildSteps</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="AstCheck" priority="0x0100" type="Button">
+        <Parent guid="guidZigCommands" id="ZigServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Checkmark" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Run ast-check</ButtonText><CommandName>Zig.AstCheck</CommandName><CanonicalName>.Zig.AstCheck</CanonicalName><LocCanonicalName>.Zig.AstCheck</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="RestartServer" priority="0x0110" type="Button">
+        <Parent guid="guidZigCommands" id="ZigServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Restart" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Restart Language Server (ZLS)</ButtonText><CommandName>Zig.RestartLanguageServer</CommandName><CanonicalName>.Zig.RestartLanguageServer</CanonicalName><LocCanonicalName>.Zig.RestartLanguageServer</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidZigCommands" id="Settings" priority="0x0120" type="Button">
+        <Parent guid="guidZigCommands" id="ZigServiceGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Settings...</ButtonText><CommandName>Zig.Settings</CommandName><CanonicalName>.Zig.Settings</CanonicalName><LocCanonicalName>.Zig.Settings</LocCanonicalName></Strings>
+      </Button>
+    </Buttons>
+    <Combos>
+      <Combo guid="guidZigCommands" id="StepCombo" priority="0x0010" type="DropDownCombo" defaultWidth="150" idCommandList="StepComboList">
+        <Parent guid="guidZigCommands" id="ZigToolbarGroup" />
+        <CommandFlag>IconAndText</CommandFlag>
+        <Strings><ButtonText>Step:</ButtonText><ToolTipText>zig build step for Build Project (from build.zig)</ToolTipText><CommandName>Zig.BuildStep</CommandName><CanonicalName>.Zig.BuildStep</CanonicalName><LocCanonicalName>.Zig.BuildStep</LocCanonicalName></Strings>
+      </Combo>
+    </Combos>
+  </Commands>
+  <CommandPlacements>
+    <CommandPlacement guid="guidZigCommands" id="BuildProject" priority="0x0020"><Parent guid="guidZigCommands" id="ZigToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="BuildFile" priority="0x0030"><Parent guid="guidZigCommands" id="ZigToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="RunFile" priority="0x0040"><Parent guid="guidZigCommands" id="ZigToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="Cancel" priority="0x0050"><Parent guid="guidZigCommands" id="ZigToolbarGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="BuildFile" priority="0x0100"><Parent guid="guidZigCommands" id="ZigEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="RunFile" priority="0x0110"><Parent guid="guidZigCommands" id="ZigEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidZigCommands" id="AstCheck" priority="0x0120"><Parent guid="guidZigCommands" id="ZigEditorGroup" /></CommandPlacement>
+  </CommandPlacements>
+  <!-- Shown while a Zig editor is active, also before ZigPackage has loaded (it then loads in the background). -->
+  <VisibilityConstraints>
+    <VisibilityItem guid="guidZigCommands" id="BuildFile" context="guidZigEditorContext" />
+    <VisibilityItem guid="guidZigCommands" id="RunFile" context="guidZigEditorContext" />
+    <VisibilityItem guid="guidZigCommands" id="AstCheck" context="guidZigEditorContext" />
+  </VisibilityConstraints>
+  <Symbols>
+    <GuidSymbol name="guidZigPackage" value="{a7d3c9e1-5b2f-4e6a-9c8d-1f2e3d4c5b6a}" />
+    <GuidSymbol name="guidZigEditorContext" value="{6b0d2f4e-8a1c-4d3e-9f5b-7c2a1e0d3b48}" />
+    <GuidSymbol name="guidZigCommands" value="{e3a1d6f0-4b2c-4f7e-8d9a-5c6b7a8e9f10}">
+      <IDSymbol name="ZigToolsGroup" value="0x1000" />
+      <IDSymbol name="ZigBuildGroup" value="0x1001" />
+      <IDSymbol name="ZigServiceGroup" value="0x1002" />
+      <IDSymbol name="ZigToolbarGroup" value="0x1003" />
+      <IDSymbol name="ZigEditorGroup" value="0x1004" />
+      <IDSymbol name="ZigToolbar" value="0x2000" />
+      <IDSymbol name="ZigMenu" value="0x2001" />
+      <IDSymbol name="BuildProject" value="0x0100" />
+      <IDSymbol name="BuildFile" value="0x0101" />
+      <IDSymbol name="RunFile" value="0x0102" />
+      <IDSymbol name="Cancel" value="0x0103" />
+      <IDSymbol name="RefreshSteps" value="0x0104" />
+      <IDSymbol name="RestartServer" value="0x0105" />
+      <IDSymbol name="AstCheck" value="0x0106" />
+      <IDSymbol name="Settings" value="0x0107" />
+      <IDSymbol name="StepCombo" value="0x0110" />
+      <IDSymbol name="StepComboList" value="0x0111" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

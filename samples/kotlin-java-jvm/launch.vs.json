@@ -1,0 +1,19 @@
+{
+  "version": "0.2.1",
+  "configurations": [
+    {
+      "type": "kotlin-jvm",
+      "name": "Kotlin entry calling Java",
+      "project": "src/main/kotlin/mixed/MixedMain.kt",
+      "mainClass": "mixed.MixedMainKt",
+      "args": []
+    },
+    {
+      "type": "kotlin-jvm",
+      "name": "Java entry calling Kotlin",
+      "project": "src/main/java/mixed/JavaEntry.java",
+      "mainClass": "mixed.JavaEntry",
+      "args": []
+    }
+  ]
+}

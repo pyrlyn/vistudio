@@ -1,0 +1,14 @@
+<Image xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="16" Height="16">
+  <Image.Source>
+    <DrawingImage>
+  <DrawingImage.Drawing>
+    <DrawingGroup>
+      <GeometryDrawing Brush="Transparent" Geometry="M0,0 H16 V16 H0 Z" />
+      <GeometryDrawing Brush="#9062D7" Geometry="M1,1 H12 L6,7 L12,14 H1 Z" />
+      <GeometryDrawing Brush="#EF8E49" Geometry="M1,1 H8 L1,8 Z" />
+      <GeometryDrawing Brush="#3A9D68" Geometry="M10,8 L16,12 L10,16 Z" />
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+    </DrawingImage>
+  </Image.Source>
+</Image>

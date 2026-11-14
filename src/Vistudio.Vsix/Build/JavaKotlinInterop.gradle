@@ -1,0 +1,23 @@
+// Vistudio: passed by the Java language server (Eclipse JDT LS) to its Gradle model import only.
+// JDT LS reads Java sources but cannot read Kotlin sources, so Java code calling Kotlin would show
+// "cannot be resolved" errors. Expose the Kotlin compiler's class output of each JVM source set as a
+// class-folder library in the Eclipse classpath model. The Kotlin build itself is unchanged.
+allprojects { project ->
+    def register = {
+        project.eclipse.classpath.file.whenMerged { classpath ->
+            if (!project.plugins.hasPlugin('org.jetbrains.kotlin.jvm')) return
+            project.sourceSets.each { sourceSet ->
+                sourceSet.output.classesDirs.files.findAll { it.path.replace('\\', '/').contains('/classes/kotlin/') }.each { dir ->
+                    def library = new org.gradle.plugins.ide.eclipse.model.Library(classpath.fileReference(dir))
+                    if (sourceSet.name != 'main') library.entryAttributes['test'] = 'true'
+                    if (!classpath.entries.any { it instanceof org.gradle.plugins.ide.eclipse.model.Library && it.path == library.path }) classpath.entries += library
+                }
+            }
+        }
+    }
+    // The Eclipse model builder applies 'eclipse' after evaluation; hooks registered while the build script still
+    // applies the Java/Kotlin plugins would be replaced, so register them only after the project is evaluated.
+    project.plugins.withId('eclipse') {
+        if (project.state.executed) register() else project.afterEvaluate { register() }
+    }
+}

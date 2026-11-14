@@ -1,0 +1,210 @@
+import groovy.xml.MarkupBuilder
+import org.gradle.api.artifacts.FileCollectionDependency
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+import org.gradle.api.artifacts.result.UnresolvedDependencyResult
+
+// Resolve metadata via public Gradle APIs; never execute compile, run, or dependency artifact tasks.
+// The explicit root guard prevents init-script application to buildSrc/included builds from exporting another model.
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def requestedRoot = System.getenv('VISTUDIO_MODEL_ROOT')
+    if (!requestedRoot || root.projectDir.canonicalFile != new File(requestedRoot).canonicalFile) return
+    root.tasks.register('vistudioImportModel6cc1f5c0') {
+        doLast {
+            def destination = System.getenv('VISTUDIO_MODEL_OUTPUT')
+            if (!destination) throw new GradleException('VISTUDIO_MODEL_OUTPUT is required.')
+            def modules = []
+            def libraries = []
+            def configurations = []
+            def frameworks = []
+            def sourceRoots = []
+            def kotlinTargets = []
+            def kotlinSourceSetRecords = []
+            def resolved = [:]
+            def additional = (System.getenv('VISTUDIO_MODEL_CONFIGURATIONS') ?: '').split(/[\s,]+/).findAll { it }.toSet()
+            def additionalFound = [] as Set
+            def pluginMarkers = [
+                'org.jetbrains.kotlin.jvm': ['Kotlin/JVM Gradle plugin', 'org.jetbrains.kotlin:kotlin-gradle-plugin'],
+                'org.jetbrains.kotlin.multiplatform': ['Kotlin Multiplatform Gradle plugin', 'org.jetbrains.kotlin:kotlin-gradle-plugin'],
+                'org.jetbrains.kotlin.android': ['Kotlin Android Gradle plugin', 'org.jetbrains.kotlin:kotlin-gradle-plugin'],
+                'org.jetbrains.compose': ['Compose Gradle plugin', 'org.jetbrains.compose:compose-gradle-plugin'],
+                'org.springframework.boot': ['Spring Boot Gradle plugin', 'org.springframework.boot:spring-boot-gradle-plugin'],
+                'com.android.application': ['Android application Gradle plugin', 'com.android.tools.build:gradle'],
+                'com.android.library': ['Android library Gradle plugin', 'com.android.tools.build:gradle']
+            ]
+            def componentName = { id -> id instanceof ModuleComponentIdentifier ? "${id.group}:${id.module}" : id.displayName }
+            def resolve = { project, configuration, scope ->
+                def key = project.path + '\t' + scope
+                if (resolved.containsKey(key)) return resolved[key]
+                println("Vistudio: resolving ${project.path} / ${scope}")
+                try {
+                    def result = configuration.incoming.resolutionResult
+                    def dependencies = result.allDependencies
+                    def failures = dependencies.findAll { it instanceof UnresolvedDependencyResult }
+                    if (failures) throw new GradleException(failures.collect { "${it.attempted.displayName}: ${it.failure.message}" }.join('\n'))
+                    def components = result.allComponents
+                    def direct = result.root.dependencies.findAll { it instanceof ResolvedDependencyResult && !it.constraint }.collect { it.selected.id }.toSet()
+                    def requests = dependencies.findAll { it instanceof ResolvedDependencyResult }.groupBy { it.selected.id }
+                    components.findAll { it.id != result.root.id }.sort { it.id.displayName }.each { component ->
+                        def id = component.id
+                        def record = [Include: componentName(id), Module: project.path, Configuration: scope,
+                            Origin: 'Gradle ResolutionResult', Kind: id instanceof ModuleComponentIdentifier ? 'Module' : 'Project',
+                            Version: id instanceof ModuleComponentIdentifier ? id.version : '',
+                            Requested: (requests[id] ?: []).collect { it.requested.displayName }.unique().sort().join('; '),
+                            Relationship: direct.contains(id) ? 'Direct' : 'Transitive or constraint',
+                            SelectionReason: component.selectionReason.descriptions.collect { it.description }.unique().join('; ')]
+                        if (id instanceof ProjectComponentIdentifier) {
+                            record.ProjectPath = id.projectPath
+                            record.BuildTreePath = id.buildTreePath
+                        }
+                        libraries.add(record)
+                    }
+                    configurations.add([Include: scope, Module: project.path, Status: 'Resolved',
+                        ComponentCount: (components.size() - 1).toString(), Origin: 'Gradle Configuration'])
+                    resolved[key] = components
+                    return components
+                } catch (Exception failure) {
+                    throw new GradleException("Vistudio import failed in ${project.path} / ${scope}. Previous IDE metadata is unchanged. ${failure.message}", failure)
+                }
+            }
+            root.allprojects.sort { it.path }.each { project ->
+                modules.add([Include: project.path, Name: project.name, Path: project.projectDir.absolutePath,
+                    BuildFile: project.buildFile.absolutePath, Group: project.group.toString(),
+                    Version: project.version.toString() == 'unspecified' ? '' : project.version.toString(), Origin: 'Gradle Project'])
+                // Source roots come from the configured source sets; Kotlin roots first so mixed Java roots keep the Kotlin owner.
+                def seenRoots = [] as Set
+                def addRoots = { sourceSetName, kind, directories ->
+                    (directories ?: []).collect { it.canonicalFile }.sort { it.path }.each { directory ->
+                        if (seenRoots.add(sourceSetName + '\t' + directory.path)) sourceRoots.add([Include: directory.path, Module: project.path,
+                            SourceSet: sourceSetName, Kind: kind, Exists: directory.directory.toString(), Origin: 'Gradle source set'])
+                    }
+                }
+                def kotlinSourceSets = project.extensions.findByName('kotlin')?.with { it.hasProperty('sourceSets') ? it.sourceSets : null }
+                if (kotlinSourceSets != null) kotlinSourceSets.each { sourceSet ->
+                    addRoots(sourceSet.name, 'Sources', sourceSet.kotlin.srcDirs)
+                    addRoots(sourceSet.name, 'Resources', sourceSet.resources.srcDirs)
+                }
+                def javaSourceSets = project.extensions.findByName('sourceSets')
+                if (javaSourceSets != null) javaSourceSets.each { sourceSet ->
+                    addRoots(sourceSet.name, 'Sources', sourceSet.java.srcDirs)
+                    addRoots(sourceSet.name, 'Resources', sourceSet.resources.srcDirs)
+                }
+                def selected = [] as Set
+                def sourceSets = javaSourceSets
+                if (sourceSets != null) sourceSets.each { sourceSet ->
+                    selected.add(sourceSet.compileClasspathConfigurationName)
+                    selected.add(sourceSet.runtimeClasspathConfigurationName)
+                }
+                def kotlin = project.extensions.findByName('kotlin')
+                def targets = kotlin?.hasProperty('targets') ? kotlin.targets : (kotlin?.hasProperty('target') ? [kotlin.target] : [])
+                targets.each { target -> target.compilations.each { compilation ->
+                    selected.add(compilation.compileDependencyConfigurationName)
+                    if (compilation.hasProperty('runtimeDependencyConfigurationName')) selected.add(compilation.runtimeDependencyConfigurationName)
+                } }
+                // Multiplatform targets and the source-set hierarchy. Only tasks that actually exist are recorded.
+                if (kotlin != null && project.pluginManager.hasPlugin('org.jetbrains.kotlin.multiplatform')) {
+                    def taskNames = project.tasks.names
+                    def qualify = { name -> (project.path == ':' ? ':' : project.path + ':') + name }
+                    def existing = { names -> names.findAll { it && taskNames.contains(it) }.unique().collect { qualify(it) }.join(' ') }
+                    def owners = [:].withDefault { [] as Set }
+                    def platformLabels = [jvm: 'JVM', androidJvm: 'Android', js: 'JS', wasm: 'Wasm', native: 'Native']
+                    kotlin.targets.findAll { it.platformType.name() != 'common' }.sort { it.name }.each { target ->
+                        def platform = target.platformType.name()
+                        def name = target.name
+                        def compilations = target.compilations.toList().sort { it.name == 'main' ? '' : it.name }
+                        def main = compilations.find { it.name == 'main' }
+                        compilations.each { compilation -> compilation.allKotlinSourceSets.each { owners[it.name].add(name) } }
+                        def configurationNames = compilations.collectMany { compilation ->
+                            [compilation.compileDependencyConfigurationName] + (compilation.hasProperty('runtimeDependencyConfigurationName')
+                                && compilation.runtimeDependencyConfigurationName ? [compilation.runtimeDependencyConfigurationName] : [])
+                        }.findAll { it }.unique()
+                        def build = main ? [main.compileAllTaskName] : []
+                        def run = []
+                        def environments = []
+                        if (platform == 'native') {
+                            def executables = target.binaries.findAll { it.hasProperty('runTaskName') && it.runTaskName && it.buildType.name() == 'DEBUG' }
+                            build += executables.collect { it.linkTaskName }
+                            run += executables.collect { it.runTaskName }
+                        } else if (platform == 'js' || platform == 'wasm') {
+                            [Node: 'Node.js', Browser: 'Browser', D8: 'D8'].each { key, label ->
+                                if (taskNames.contains(name + key + 'DevelopmentRun') || taskNames.contains(name + key + 'Test')) environments.add(label)
+                                run.add(name + key + 'DevelopmentRun')
+                            }
+                        } else if (platform == 'jvm') {
+                            run.add(name + 'Run')
+                        }
+                        kotlinTargets.add([Include: name, Module: project.path, Platform: platformLabels[platform] ?: platform, PlatformType: platform,
+                            NativeTarget: platform == 'native' && target.hasProperty('konanTarget') ? target.konanTarget.name : '',
+                            WasmTarget: platform == 'wasm' && target.hasProperty('wasmTargetType') && target.wasmTargetType ? target.wasmTargetType.name() : '',
+                            Environments: environments.join(' '),
+                            Compilations: compilations.collect { it.name }.join(' '),
+                            SourceSets: compilations.collect { it.defaultSourceSet.name }.unique().join(' '),
+                            MainSourceSets: main ? main.allKotlinSourceSets.collect { it.name }.sort().join(' ') : '',
+                            Configurations: configurationNames.join(' '),
+                            BuildTasks: existing(build), TestTasks: existing([name + 'Test']), RunTasks: existing(run).split(' ').find { it } ?: '',
+                            Origin: 'Kotlin Multiplatform target'])
+                    }
+                    kotlin.sourceSets.toList().sort { it.name }.each { sourceSet ->
+                        kotlinSourceSetRecords.add([Include: sourceSet.name, Module: project.path, DependsOn: sourceSet.dependsOn.collect { it.name }.sort().join(' '),
+                            Targets: owners[sourceSet.name].sort().join(' '), Origin: 'Kotlin source set'])
+                    }
+                }
+                project.configurations.findAll { it.canBeResolved }.sort { it.name }.each { configuration ->
+                    if (additional.contains(configuration.name)) additionalFound.add(configuration.name)
+                    if (!selected.contains(configuration.name) && !(configuration.name ==~ /(?i).*(compile|runtime)Classpath/)
+                        && !additional.contains(configuration.name)) {
+                        configurations.add([Include: configuration.name, Module: project.path, Status: 'Skipped', Origin: 'Gradle Configuration',
+                            Reason: 'Outside compile/runtime scope; add its name to ImportConfigurations to include it.'])
+                        return
+                    }
+                    resolve(project, configuration, configuration.name)
+                    // File dependencies have no module version and are absent from ResolutionResult.
+                    configuration.allDependencies.withType(FileCollectionDependency).each { dependency ->
+                        dependency.files.files.sort { it.absolutePath }.each { file ->
+                            libraries.add([Include: file.absolutePath, Module: project.path, Configuration: configuration.name,
+                                Version: '', Kind: 'File', Path: file.absolutePath, Origin: 'Gradle file dependency', Relationship: 'File'])
+                        }
+                    }
+                }
+                def applied = pluginMarkers.findAll { id, marker -> project.pluginManager.hasPlugin(id) }
+                if (applied) {
+                    applied.each { id, marker ->
+                        def component = null
+                        def owner = project
+                        def resolutionModule = ''
+                        while (owner != null && component == null) {
+                            def classpath = owner.buildscript.configurations.findByName('classpath')
+                            def components = classpath && classpath.canBeResolved ? resolve(owner, classpath, 'buildscript:classpath') : []
+                            component = components.find { it.id instanceof ModuleComponentIdentifier && componentName(it.id) == marker[1] }
+                            if (component != null) resolutionModule = owner.path
+                            owner = owner.parent
+                        }
+                        frameworks.add([Include: marker[0], Module: project.path, Configuration: 'buildscript:classpath',
+                            Version: component ? component.id.version : '', Kind: 'Applied plugin', PluginId: id,
+                            Evidence: marker[1], ResolutionModule: resolutionModule,
+                            Origin: component ? 'Applied plugin + Gradle ResolutionResult' : 'Applied plugin; version unavailable'])
+                    }
+                }
+            }
+            if (!additionalFound.containsAll(additional)) throw new GradleException('Unknown/non-resolvable ImportConfigurations: ' + (additional - additionalFound))
+            // Write only after all configurations succeeded. The client also requires exit 0 and validates this envelope.
+            new File(destination).withWriter('UTF-8') { writer ->
+                def xml = new MarkupBuilder(writer)
+                xml.GradleModel(SchemaVersion: '1', Complete: 'true', RootDirectory: root.projectDir.canonicalPath,
+                    GradleVersion: gradle.gradleVersion, JavaVersion: System.getProperty('java.version'), JavaHome: System.getProperty('java.home')) {
+                    [Module: modules, Configuration: configurations, Library: libraries, Framework: frameworks, SourceRoot: sourceRoots,
+                        Target: kotlinTargets, KotlinSourceSet: kotlinSourceSetRecords].each { kind, records ->
+                        records.each { record ->
+                            "$kind"(Include: record.Include) {
+                                record.findAll { key, value -> key != 'Include' }.each { key, value -> "$key"(value) }
+                            }
+                        }
+                    }
+                }
+            }
+            println("Vistudio: resolved ${modules.size()} modules, ${configurations.size()} configurations, ${libraries.size()} library entries, ${sourceRoots.size()} source roots, ${kotlinTargets.size()} Kotlin targets.")
+        }
+    }
+}

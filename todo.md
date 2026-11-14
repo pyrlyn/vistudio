@@ -1,0 +1,17 @@
+- T12. Resolve enclosing-class generic extension completion
+- T21. Kotlin Multiplatform targets in the project file and Solution Explorer
+- T22. Compose Multiplatform @Preview window
+- T30. Java alongside Kotlin: highlighting, completion and mixed JVM debugging
+- T34. Native Kotlin test run and debug (Test Explorer + editor lenses)
+- T35. Editor CodeLens for Kotlin and Java
+- T36. Kotlin project templates in File > New > Project
+- T38. Error Lens: severity-colored inline diagnostics in every editor
+- T40. Scroll bar map mode (minimap) for Kotlin and Java
+- T43. ETW provider for the custom language runtime (Visual Studio Performance Profiler)
+- T44. Zig language: file types, coloring and settings
+- T45. Zig IntelliSense and navigation through ZLS
+- T46. Zig ast-check diagnostics
+- T47. Zig CodeLens
+- T48. Zig build and run
+- T50. Workspace settings for each Visual Studio window
+- T51. Mise tool versions: detection, install check, inline updates, upgrade all

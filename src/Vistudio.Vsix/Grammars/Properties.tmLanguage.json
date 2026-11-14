@@ -1,0 +1,35 @@
+{
+  "name": "Java Properties",
+  "scopeName": "source.java-properties",
+  "fileTypes": ["properties"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#entry" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^[ \\t\\f]*([#!]).*$",
+      "name": "comment.line.number-sign.properties",
+      "captures": { "1": { "name": "punctuation.definition.comment.properties" } }
+    },
+    "entry": {
+      "comment": "Key up to the first unescaped '=', ':' or whitespace; the value runs to the end of the line and continues after an unescaped trailing backslash.",
+      "begin": "^[ \\t\\f]*((?:\\\\.|[^\\s=:\\\\])+)[ \\t\\f]*([=:])?[ \\t\\f]*",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.definition.properties" },
+        "2": { "name": "punctuation.separator.key-value.properties" }
+      },
+      "end": "\\n",
+      "contentName": "string.unquoted.value.properties",
+      "patterns": [
+        { "match": "\\G(?:true|false)(?=\\s*$)", "name": "constant.language.boolean.properties" },
+        { "match": "\\G[-+]?\\d+(?:\\.\\d+)?(?=\\s*$)", "name": "constant.numeric.properties" },
+        { "match": "\\\\u[0-9a-fA-F]{4}", "name": "constant.character.escape.unicode.properties" },
+        { "match": "\\\\\\n", "name": "punctuation.separator.continuation.line.properties" },
+        { "match": "\\\\.", "name": "constant.character.escape.properties" },
+        { "match": "\\$\\{[^}\\n]*\\}", "name": "variable.other.placeholder.properties" },
+        { "match": "\\{\\d+(?:,[^}\\n]*)?\\}", "name": "variable.other.placeholder.properties" }
+      ]
+    }
+  }
+}

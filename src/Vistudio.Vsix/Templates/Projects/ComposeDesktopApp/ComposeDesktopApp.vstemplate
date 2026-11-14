@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>Compose Multiplatform Desktop App</Name>
+    <Description>A Compose Multiplatform desktop application (JVM) with a @Preview for the Compose preview window and a kotlin.test unit test.</Description>
+    <ProjectType>Kotlin</ProjectType>
+    <TemplateID>Vistudio.Kotlin.ComposeDesktop</TemplateID>
+    <SortOrder>50</SortOrder>
+    <Icon>Kotlin.png</Icon>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>ComposeApp</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <LocationField>Enabled</LocationField>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <LanguageTag>Kotlin</LanguageTag>
+    <PlatformTag>Windows</PlatformTag>
+    <PlatformTag>Linux</PlatformTag>
+    <PlatformTag>macOS</PlatformTag>
+    <ProjectTypeTag>Desktop</ProjectTypeTag>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="vistudio.kotlinproj" TargetFileName="vistudio.kotlinproj" ReplaceParameters="true" />
+  </TemplateContent>
+</VSTemplate>

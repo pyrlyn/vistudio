@@ -1,0 +1,16 @@
+// IDE task discovery only. Project compilation and execution remain Gradle responsibilities.
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    root.tasks.register('vistudioDiscoverTasks6cc1f5c0') {
+        doLast {
+            def encode = { value -> (value ?: '').toString().getBytes('UTF-8').encodeBase64().toString() }
+            root.allprojects.sort { it.path }.each { project ->
+                project.tasks.sort { it.path }.each { task ->
+                    if (task.name != 'vistudioDiscoverTasks6cc1f5c0') {
+                        println('VISTUDIO_TASK\t' + task.path + '\t' + encode(task.group) + '\t' + encode(task.description))
+                    }
+                }
+            }
+        }
+    }
+}

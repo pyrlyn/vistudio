@@ -1,0 +1,4 @@
+IJ_JAVA_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NUL
+idea.config.path=C:\Users\User\AppData\Local\Temp\idea-system4125111414043512855\config
+idea.system.path=C:\Users\User\AppData\Local\Temp\idea-system4125111414043512855\system
+Log file: C:\Users\User\AppData\Local\Temp\idea-system4125111414043512855\system\log\intellij-server.log

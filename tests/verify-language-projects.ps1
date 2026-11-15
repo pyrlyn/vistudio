@@ -7,7 +7,7 @@ param(
     [string]$Vsix = (Join-Path $PSScriptRoot '../src/Vistudio.Vsix/bin/Debug/net472/Vistudio.Vsix.vsix'),
     [string]$RootSuffix = 'VistudioLanguages',
     [string]$FlutterSdk = 'C:/Users/listepo/tools/flutter',
-    [ValidateSet('all', 'dart', 'cpp')][string]$Part = 'all',
+    [ValidateSet('all', 'dart', 'cpp', 'c', 'java', 'missing-tools')][string[]]$Part = @('all'),
     [switch]$SkipInstall,
     [switch]$KeepOpen
 )
@@ -21,6 +21,7 @@ $evidence = Join-Path $env:TEMP ('vistudio-languages-' + [Guid]::NewGuid().ToStr
 New-Item -ItemType Directory -Path $evidence | Out-Null
 $log = Join-Path $evidence 'acceptance.log'
 $script:passed = 0
+function Want([string]$name) { $Part -contains 'all' -or $Part -contains $name }
 function Say([string]$text) { [IO.File]::AppendAllText($log, $text + [Environment]::NewLine); Write-Host $text }
 function Check([bool]$condition, [string]$message) {
     if (-not $condition) { Say "FAIL: $message"; throw $message }
@@ -112,7 +113,7 @@ Check ($dte -ne $null) "Automation object of devenv $($process.Id) is available"
 try {
     $a = New-Object LanguageProjectsAcceptance $dte, ([Action[string]]{ param($line) Say $line })
 
-    if ($Part -in 'all', 'dart') {
+    if (Want 'dart') {
         $file = $a.Create('DartConsoleApp', $solutionFolder, 'DartApp', '.dartproj')
         $project = $a.ProjectItem('DartApp')
         $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (pub)') }, 30, 'Dart project shows its pub Packages node first')
@@ -126,6 +127,8 @@ try {
         Check ($LASTEXITCODE -eq 0) 'dart pub get with path 1.8.0'
         $old = $a.WaitChild($packages, { param($n) $n.StartsWith('path 1.8.0') }, 60, 'The new dependency appears after the manifest edit')
         try { $a.Execute($project, 'Vistudio.TestLanguageProject') } catch { Say "Run Tests on the project node: $($_.Exception.Message)" }
+        # The background version check can rename the node ("... – N outdated") at any time, which drops earlier DTE items.
+        $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (pub)') }, 30, 'Packages (pub) node before Check for Updates')
         $a.Execute($packages, 'Vistudio.CheckPackageUpdates')
         $old = $a.WaitNested($project, 'Packages (pub)', { param($n) $n -match '^path 1\.8\.0 \u2192 \d' }, 180, 'Check for Updates marks path 1.8.0 as outdated with the newer version')
         $packages = $a.WaitChild($project, { param($n) $n -match '^Packages \(pub\) \u2013 \d+ outdated' }, 30, 'The Packages node counts outdated packages')
@@ -136,7 +139,7 @@ try {
         Check ($a.Build(300)) 'Solution build runs dart analyze for the Dart project and succeeds'
     }
 
-    if ($Part -in 'all', 'cpp') {
+    if (Want 'cpp') {
         $file = $a.Create('CppConsoleApp', $solutionFolder, 'CppApp', '.cppproj')
         $project = $a.ProjectItem('CppApp')
         $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Conan)') }, 30, 'C++ project shows its Conan Packages node')
@@ -144,6 +147,7 @@ try {
         $text = [IO.File]::ReadAllText($conanfile).Replace("[requires]`r`n", "[requires]`r`nfmt/10.2.1`r`n")
         [IO.File]::WriteAllText($conanfile, $text)
         $fmt = $a.WaitChild($packages, { param($n) $n.StartsWith('fmt ') }, 60, 'fmt appears after the conanfile edit')
+        $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Conan)') }, 30, 'Packages (Conan) node before Check for Updates')
         $a.Execute($packages, 'Vistudio.CheckPackageUpdates')
         $fmt = $a.WaitNested($project, 'Packages (Conan)', { param($n) $n -match '^fmt 10\.2\.1 \u2192 \d' }, 180, 'Conan reports a newer fmt')
         $a.SetStartup('CppApp')
@@ -152,11 +156,66 @@ try {
         $function = $a.DebugToBreakpoint($main, 6, 180)
         Check ($function -match 'main') "F5 debugs the CMake program in the native engine (stopped in $function)"
     }
+
+    if (Want 'c') {
+        $file = $a.Create('CConsoleApp', $solutionFolder, 'CApp', '.cproj')
+        $project = $a.ProjectItem('CApp')
+        $null = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Conan)') }, 30, 'C project shows its Conan Packages node')
+        $children = $a.Children($project)
+        Check ($children -contains 'src' -and $children -contains 'CMakeLists.txt' -and $children -contains 'conanfile.txt') ('C project lists its folder: ' + ($children -join ', '))
+        $a.SetStartup('CApp')
+        Check ($a.Build(900)) 'Solution build runs conan install, CMake configure and build for the C project'
+        $main = Join-Path (Split-Path $file) 'src/main.c'
+        $function = $a.DebugToBreakpoint($main, 6, 180)
+        Check ($function -match 'main') "F5 debugs the C program in the native engine (stopped in $function)"
+    }
+
+    if (Want 'java') {
+        $file = $a.Create('JavaConsoleApp', $solutionFolder, 'JavaApp', '.javaproj')
+        $folder = Split-Path $file
+        $project = $a.ProjectItem('JavaApp')
+        $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Gradle)') }, 60, 'Java project shows its Gradle Packages node')
+        $children = $a.Children($project)
+        Check ($children -contains 'src' -and $children -contains 'build.gradle.kts' -and $children -contains 'gradlew.bat') ('Java project lists its folder: ' + ($children -join ', '))
+        $gradleFile = Join-Path $folder 'build.gradle.kts'
+        $text = [IO.File]::ReadAllText($gradleFile).Replace("dependencies {`r`n}", "dependencies {`r`n    implementation(`"com.google.code.gson:gson:2.8.0`")`r`n}")
+        [IO.File]::WriteAllText($gradleFile, $text)
+        Check ($text.Contains('gson:2.8.0')) 'gson 2.8.0 added to build.gradle.kts'
+        $null = $a.WaitNested($project, 'Packages (Gradle)', { param($n) $n.StartsWith('com.google.code.gson:gson') -or $n.StartsWith('gson') }, 90, 'gson appears after the build file edit')
+        $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Gradle)') }, 10, 'Gradle Packages node after the edit')
+        $packages = $a.WaitChild($project, { param($n) $n.StartsWith('Packages (Gradle)') }, 30, 'Packages (Gradle) node before Check for Updates')
+        $a.Execute($packages, 'Vistudio.CheckPackageUpdates')
+        $null = $a.WaitNested($project, 'Packages (Gradle)', { param($n) $n -match 'gson 2\.8\.0 \u2192 \d' }, 300, 'Gradle reports a newer gson')
+        Check ($a.Build(600)) 'Solution build runs the Gradle wrapper for the Java project and succeeds'
+        Check (Test-Path (Join-Path $folder 'build/libs/JavaApp.jar')) 'Gradle build produced build/libs/JavaApp.jar'
+    }
+
+    if (Want 'missing-tools') {
+        # Rust, Zig and WebAssembly projects load without their tools; a build must fail with a message that names the
+        # missing tool instead of hanging or failing silently. Skipped per language when the tool is on PATH.
+        foreach ($case in @(
+                @{ Template = 'RustConsoleApp'; Name = 'RustApp'; Extension = '.rustproj'; Tool = 'cargo'; Files = @('src', 'Cargo.toml'); Packages = 'Packages (Cargo)' },
+                @{ Template = 'ZigConsoleApp'; Name = 'ZigApp'; Extension = '.zigproj'; Tool = 'zig'; Files = @('src', 'build.zig'); Packages = $null },
+                @{ Template = 'WasmModule'; Name = 'WasmApp'; Extension = '.wasmproj'; Tool = 'wasm-tools'; Files = @('src'); Packages = $null })) {
+            $null = $a.Create($case.Template, $solutionFolder, $case.Name, $case.Extension)
+            $project = $a.ProjectItem($case.Name)
+            if ($case.Packages) { $null = $a.WaitChild($project, { param($n) $n.StartsWith($case.Packages) }, 30, "$($case.Name) shows $($case.Packages)") }
+            $children = $a.Children($project)
+            Check (@($case.Files | Where-Object { $children -notcontains $_ }).Count -eq 0) ("$($case.Name) lists its folder: " + ($children -join ', '))
+            if (Get-Command $case.Tool -ErrorAction SilentlyContinue) { Say "SKIP: $($case.Tool) is installed; the missing-tool build is not checked"; continue }
+            Check (-not $a.BuildProject($case.Name, 120)) "$($case.Name) build fails without $($case.Tool)"
+            $pane = $a.Pane('Build') + $a.Pane('Vistudio Projects')
+            Check ($pane -match [regex]::Escape($case.Tool)) "$($case.Name) build without $($case.Tool) names the missing tool"
+            $a.Unload($case.Name)
+        }
+    }
 }
 finally {
     try { foreach ($pane in 'Vistudio Projects', 'Packages') { Say ("--- $pane pane:" + [Environment]::NewLine + $a.Pane($pane)) } } catch { }
     if (-not $KeepOpen) {
         try { $dte.Documents.CloseAll(2) } catch { }
+        # Added or removed projects make the solution dirty; its save prompt would hold DTE.Quit.
+        try { $dte.Solution.Close($false) } catch { }
         try { $dte.Quit() } catch { }
         if (-not $process.WaitForExit(60000)) { Say 'WARN: devenv did not exit in 60 s; ending it'; Stop-Process -Id $process.Id -Force }
         $errors = Select-String -LiteralPath $activityLog -Pattern '<type>Error</type>' -Context 0, 4 | Where-Object { $_.Context.PostContext -match 'Vistudio' }

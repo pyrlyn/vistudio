@@ -184,6 +184,34 @@ public sealed class LanguageProjectsAcceptance
         return build.LastBuildInfo == 0;
     }
 
+    /// <summary>
+    /// Builds one project with SolutionBuild.BuildProject, which finds the project by its DTE unique name; returns true
+    /// when it succeeded.
+    /// </summary>
+    public bool BuildProject(string name, int seconds)
+    {
+        var build = dte.Solution.SolutionBuild;
+        var project = Projects().First(p => p.Name == name);
+        var unique = project.UniqueName;
+        var contexts = build.ActiveConfiguration.SolutionContexts.Cast<SolutionContext>().Select(c => c.ProjectName).ToArray();
+        Check(!Path.IsPathRooted(unique) && contexts.Any(c => unique.StartsWith(c, StringComparison.OrdinalIgnoreCase)),
+            name + " has the solution's relative unique name in DTE: " + unique + " (solution contexts: " + string.Join(", ", contexts) + ")");
+        Check(project.Kind.Equals("{EAEC17E2-15DB-4DC7-9979-DBAA46B8FDD1}", StringComparison.OrdinalIgnoreCase), name + " reports the language project type as its DTE Kind: " + project.Kind);
+        build.BuildProject(build.ActiveConfiguration.Name, unique, false);
+        var finished = WaitFor(() => build.BuildState == vsBuildState.vsBuildStateDone, seconds);
+        Check(finished, name + " build finished within " + seconds + " s");
+        say("Build output:\n" + Pane("Build"));
+        return build.LastBuildInfo == 0;
+    }
+
+    /// <summary>Removes a project from the solution (the files stay), so later solution builds leave it out.</summary>
+    public void Unload(string name)
+    {
+        var project = Projects().First(p => p.Name == name);
+        dte.Solution.Remove(project);
+        Check(WaitFor(() => !Projects().Any(p => p.Name == name), 30), "Solution.Remove took " + name + " out of the solution");
+    }
+
     public string Pane(string name)
     {
         foreach (OutputWindowPane pane in ((DTE2)dte).ToolWindows.OutputWindow.OutputWindowPanes)

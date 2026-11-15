@@ -35,10 +35,38 @@ Fixed during this acceptance:
 
 Note for automation: `UIHierarchyItem.Select` left the previous selection when the target was a virtual node; selecting by path (`UIHierarchy.GetItem("Solution\Project\Packages (pub)")`) works, and so does a click in the UI.
 
+## Visual Studio acceptance of every native script (2026-11-15)
+
+Same machine (Visual Studio Community 18.12.12405.243, root suffix `VistudioDart`; JDK 21.0.12 Adoptium for Gradle, since the scripts' default Microsoft JDK 11 is not installed). Each script installed the VSIX it names (Debug build for the language and Dart scripts, Release `artifacts/Vistudio.Kotlin.vsix` for the Kotlin scripts) and drove the IDE through DTE and UI Automation. No kotlin-lsp is installed, so the Kotlin F5/Ctrl+F5 parts were skipped with the scripts' own switches.
+
+| Script | Result |
+| --- | --- |
+| `verify-language-projects.ps1` (all parts) | PASS, 91 checks with the final Debug VSIX: the Dart and C++ checks of the first acceptance plus the `c`, `java` and `missing-tools` parts below; ActivityLog without Vistudio errors. |
+| `verify-dart.ps1` (console and Flutter) | PASS, 51 checks with install, then 50 with `-SkipInstall` and the stricter analyze checks (final Debug VSIX): analysis server and its Error List entries, Run, Run Tests, failing test in the Error List, Analyze (1 error, then 0 after the fix, and the entry leaves the Error List), Dart debugging and test debugging, Flutter run with hot reload/restart, Flutter debugging, widget and integration tests; ActivityLogs without Vistudio errors. DTE reports the opened `.dart` document's language as "Plain Text" (not checked further). |
+| `verify-solution-project.ps1 -SkipDebug` | PASS, 66 checks: in-IDE Gradle import, tree with dependencies (the recorded tree also shows one `Packages (Gradle)` node per build file, `root`, `app` and `shared`, with `kotlin-stdlib` under `app`; Check for Updates was not run on a Kotlin project), Show hidden files through Tools > Options, open/edit/save/undo, Build, Clean, Rebuild, compile error in the Error List, file add/delete, up-to-date build, Properties window, Open Folder > Create or Open .kotlinproj. Skipped: F5/Ctrl+F5. |
+| `verify-templates.ps1 -SkipMultiplatform -SkipDebug` | PASS, 25 checks: Kotlin Console, Class Library, Kotlin+Java and Compose Desktop templates create, import and build. Skipped: the Multiplatform template (its target dialog needs a person) and F5. |
+| `verify-kotlin-targets-native.ps1 -SkipJvmRun -EvidenceRoot $env:TEMP` | PASS, 43 checks: in-IDE import of jvm/js/wasmJs/mingwX64, target nodes, Run js, Build and Run mingwX64, Run wasmJs, Test jvm, solution Build, F5 on the js startup target shows the "not supported" message, Ctrl+F5 runs `:jsNodeDevelopmentRun`. Skipped: JVM Ctrl+F5. |
+
+New parts of `verify-language-projects.ps1` (`-Part` now takes several values: `dart`, `cpp`, `c`, `java`, `missing-tools`):
+
+- `c`: C Console App template, `Packages (Conan)`, folder tree, solution Build (Conan, CMake configure, build) and F5 stopping at `src/main.c:6` in `main`.
+- `java`: Java Console App template, `Packages (Gradle)`, folder tree with the wrapper; adding `gson 2.8.0` to `build.gradle.kts` shows it, Check for Updates reports `2.8.0 → 2.15.0`, solution Build runs the wrapper and writes `build/libs/JavaApp.jar`.
+- `missing-tools`: Rust, Zig and WebAssembly templates create and load (Rust shows `Packages (Cargo)`); the DTE unique name is the solution's relative name and the DTE Kind is the language project type; `SolutionBuild.BuildProject` fails with "'cargo' / 'zig' / 'wasm-tools' was not found … Install it or set Tool folders"; `Solution.Remove` removes the project.
+
+Fixed during this acceptance:
+
+- DTE automation object of `.kotlinproj` and language projects (`KotlinProjectAutomation`): `UniqueName` returned the absolute project path, so every DTE call that finds a project by unique name failed with E_FAIL (`Solution.Remove`, `SolutionBuild.BuildProject`). It now returns `IVsSolution.GetUniqueNameOfProject`. `Kind` returned the Kotlin project type for language projects too; it now returns the node's own project type. `UniqueName`, `DTE` and `Collection` switch to the UI thread, because out-of-process automation calls arrive on an RPC thread.
+- The 11 Kotlin commands (`Kotlin.Target.Run`, `Kotlin.Project.ImportGradleModel`, `Kotlin.ComposePreview`, ...) were declared with `<CommandName>`, which gives them no DTE name: `DTE.Commands.Item("Kotlin.Target.Run")` failed and `ExecuteCommand` returned E_FAIL, and keyboard bindings could not find them by name. They now use `CanonicalName`/`LocCanonicalName` with a leading dot, like the language project commands.
+- Acceptance harness: UI Automation calls into a modal dialog from the scripts' STA thread did not return (`ValuePattern.SetValue` on the Tools > Options grid until the dialog closed; the same call from an MTA thread took 18 ms), so the Options and message box steps now run on an MTA thread and report their checks back to the script thread. The message box helper no longer matches text inside the main window, reads the main window handle before F5 (Visual Studio rejects automation calls while a message box is open) and watches before F5 starts. The Dart "Analyze again after the fix" check matched an older summary in the pane; both analyze checks now read only output written after their own run, and the error must leave the Error List. The language script closes the solution without saving before `DTE.Quit`.
+- The language script re-reads the Packages node right before Check for Updates: the background version check that starts on project open can rename it ("Packages (pub) – N outdated") at any time, and DTE then drops the earlier item ("Value does not fall within the expected range" in one run).
+- Test hive: after two force-ended instances and repeated same-version reinstalls, `VistudioDart` started with "PkgDef cache creation failed" and an incomplete MEF composition (`SetSite failed for package [MisePackage]`, no New Project templates, no Dart analysis server). Deleting the hive's `ComponentModelCache`, `MEFCacheBackup` and template caches and reinstalling restored it. Not a Vistudio defect.
+- `verify-kotlin-targets-native.ps1 -EvidenceRoot`: Kotlin/JS `kotlinNpmInstall` failed with `EISDIR … symlink` when the copy was under `L:\` (a Parallels host folder without symlinks); the project copy can now live on a local NTFS folder. Not a Vistudio defect.
+
 ## Not verified
 
-- Visual rendering (icons in Solution Explorer and tabs, outdated icon, Add Package dialog, context menus as drawn); screen access was declined.
+- Visual rendering (icons in Solution Explorer and tabs, outdated icon, Add Package dialog, context menus as drawn); screen access was not used.
 - Add Package and Remove through the IDE (both open a modal window); they are covered by the Core actions and the live pub/Conan/Gradle runs.
-- Rust, Zig, WebAssembly and Java projects in the IDE; Kotlin projects' Gradle Packages node in the IDE.
-- Rust and WebAssembly editor features (no servers installed); `.rs` coloring with the new `rust` content type; WAT coloring.
-- x64 Visual Studio, Release build.
+- Rust, Zig and WebAssembly builds, runs, F5 and editor features (no cargo, rust-analyzer, zig, ZLS, wasm-tools, wasmtime, wkg or wat_server on the machine); `.rs` and WAT coloring. Their projects were only created, loaded and built without the tool.
+- Zig and WebAssembly templates write no package manifest, so those projects show no Packages node until a `build.zig.zon`, `wkg.toml` or `world.wit` exists.
+- Java F5 and every Kotlin F5/Ctrl+F5 on the JVM (no kotlin-lsp on the machine); the Kotlin Multiplatform template (interactive target dialog).
+- x64 Visual Studio.

@@ -131,12 +131,16 @@ public sealed class DartAcceptance
 
         var extra = Path.Combine(root, "lib", "extra.dart");
         File.WriteAllText(extra, "int broken() => undefinedThing;\n");
+        // Only output written after each run counts: the pane keeps earlier summaries.
+        var mark = DartPane.Length;
         Run("Dart.Analyze");
-        Check(Wait(() => DartPane.Contains("dart analyze: 1 errors"), 120000), "Dart: Analyze Package: " + Last(DartPane));
+        Check(Wait(() => After(DartPane, mark).Contains("dart analyze: 1 errors"), 120000), "Dart: Analyze Package: " + Last(After(DartPane, mark)));
         Check(Wait(() => Errors().Any(e => e.Contains("undefinedThing") && e.Contains("extra.dart")), 30000), "dart analyze error in the Error List");
         File.Delete(extra);
+        mark = DartPane.Length;
         Run("Dart.Analyze");
-        Check(Wait(() => DartPane.Contains("dart analyze: 0 errors"), 120000), "Analyze again after the fix: " + Last(DartPane));
+        Check(Wait(() => After(DartPane, mark).Contains("dart analyze: 0 errors"), 120000), "Analyze again after the fix: " + Last(After(DartPane, mark)));
+        Check(Wait(() => !Errors().Any(e => e.Contains("undefinedThing")), 30000), "The dart analyze error left the Error List");
 
         // Debugging through the SDK's debug adapter: breakpoint, call stack, watch expression, continue.
         Open(program);
@@ -221,6 +225,9 @@ public sealed class DartAcceptance
         Check(Wait(() => System.Diagnostics.Process.GetProcessesByName("flutter_counter").Length == 0, 30000), "No flutter_counter.exe is left after the integration test");
         return passed;
     }
+
+    /// <summary>Text appended after <paramref name="mark"/>; the whole text when the pane was cleared in between.</summary>
+    private static string After(string text, int mark) => text.Length >= mark ? text.Substring(mark) : text;
 
     private static string Last(string text)
     {

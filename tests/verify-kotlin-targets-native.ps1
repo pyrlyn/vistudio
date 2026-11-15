@@ -9,7 +9,10 @@ param(
     [switch]$SkipInstall,
     [switch]$SkipJvmRun,
     [switch]$UseWindowsTrustStore,
-    [switch]$KeepOpen
+    [switch]$KeepOpen,
+    # Kotlin/JS installs npm packages through yarn, which links packages with symlinks; use a local NTFS folder when the
+    # repository is on a share without symlinks (for example a virtual machine's host folder).
+    [string]$EvidenceRoot = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..')).Path 'artifacts')
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -25,7 +28,7 @@ $instance = & $vswhere -latest -format json | ConvertFrom-Json | Select-Object -
 $devenv = Join-Path $instance.installationPath 'Common7/IDE/devenv.exe'
 $installer = Join-Path $instance.installationPath 'Common7/IDE/VSIXInstaller.exe'
 
-$evidence = Join-Path $repo ('artifacts/kotlin-targets-native-' + [Guid]::NewGuid().ToString('N'))
+$evidence = Join-Path $EvidenceRoot ('kotlin-targets-native-' + [Guid]::NewGuid().ToString('N'))
 $workspace = Join-Path $evidence 'project'
 New-Item -ItemType Directory -Path $workspace | Out-Null
 $log = Join-Path $evidence 'acceptance.log'

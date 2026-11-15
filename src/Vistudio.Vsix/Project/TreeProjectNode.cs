@@ -433,7 +433,7 @@ namespace Vistudio
                     pvar = ProjectDirectory; break;
                 case (int)__VSHPROPID.VSHPROPID_ExtObject when itemid == Root:
                     // Required by the New Project template engine (Solution.AddFromTemplate) once the factory created the project.
-                    pvar = automation ??= new KotlinProjectAutomation(FilePath, () => items[Root].Model.Caption); break;
+                    pvar = automation ??= new KotlinProjectAutomation(this, FilePath, ProjectTypeGuid, () => items[Root].Model.Caption); break;
                 case (int)__VSHPROPID.VSHPROPID_Expandable:
                     pvar = model.HasChildren; break;
                 case (int)__VSHPROPID.VSHPROPID_ExpandByDefault:

@@ -19,6 +19,8 @@ public sealed class KotlinTargetsAcceptance
     private const string Commands = "{75625a1a-f6e1-42aa-bf3f-90432c756124}";
     private readonly DTE2 dte;
     private readonly int processId;
+    // Read before any modal dialog: Visual Studio rejects automation calls while a message box is open.
+    private IntPtr mainWindowHandle;
     private readonly string workspace, projectFile, evidence;
     private readonly Action<string> say;
     private int passed;
@@ -113,17 +115,19 @@ public sealed class KotlinTargetsAcceptance
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
     private struct Rect { public int Left, Top, Right, Bottom; }
 
-    private void Screenshot(string file)
+    private void Screenshot(string file) => CaptureWindow((IntPtr)dte.MainWindow.HWnd, Path.Combine(evidence, file));
+
+    /// <summary>Saves the screen area of a window; needs no DTE, so worker threads can call it.</summary>
+    private static void CaptureWindow(IntPtr handle, string path)
     {
         SetProcessDPIAware();
-        var handle = (IntPtr)dte.MainWindow.HWnd;
         SetForegroundWindow(handle);
         Thread.Sleep(1000);
         GetWindowRect(handle, out var rect);
         using (var bitmap = new Bitmap(rect.Right - rect.Left, rect.Bottom - rect.Top))
         {
             using (var graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, bitmap.Size);
-            bitmap.Save(Path.Combine(evidence, file), ImageFormat.Png);
+            bitmap.Save(path, ImageFormat.Png);
         }
     }
 
@@ -143,6 +147,10 @@ public sealed class KotlinTargetsAcceptance
         Check(node != null, "Solution Explorer shows target node '" + target + "'");
         Explorer.Parent.Activate();
         node!.Select(vsUISelectionType.vsUISelectionTypeSelect);
+        Thread.Sleep(500);
+        var selected = string.Join(" | ", ((object[])Explorer.SelectedItems).Cast<UIHierarchyItem>().Select(i => i.Name));
+        var command = dte.Commands.Item(commandName);
+        say("Selected: " + selected + "; " + commandName + " available: " + command.IsAvailable);
         var before = PaneText("Kotlin");
         var finished = Count(before, "Gradle tasks succeeded.") + Count(before, "Gradle tasks FAILED");
         dte.ExecuteCommand(commandName);
@@ -154,37 +162,61 @@ public sealed class KotlinTargetsAcceptance
         return text;
     }
 
-    /// <summary>Clicks OK on the Visual Studio message box that contains <paramref name="fragment"/>, returning its text.</summary>
-    private string CloseMessageBox(string fragment)
+    /// <summary>Runs <paramref name="trigger"/> and clicks OK on the Visual Studio message box that contains <paramref name="fragment"/>, returning its text. The watcher starts first, because the command may not return while the box is open.</summary>
+    private string CloseMessageBox(string fragment, Action trigger)
     {
-        string text = null;
-        Wait(() =>
+        // UI Automation runs on an MTA thread: from this STA thread, calls into the modal message box did not return
+        // (Visual Studio 18.12). The worker touches neither DTE nor the logging callback, which belong to this thread.
+        var mainWindow = mainWindowHandle;
+        string? text = null, buttonsSeen = null, screenshot = null;
+        Exception? failure = null;
+        var worker = new Thread(() =>
         {
-            var windows = AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, processId));
-            foreach (AutomationElement window in windows)
+            try
             {
-                var candidates = new[] { window }.Concat(window.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window)).Cast<AutomationElement>());
-                foreach (var dialog in candidates)
+                Wait(() =>
                 {
-                    var texts = dialog.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
-                        .Select(e => e.Current.Name).ToArray();
-                    var joined = string.Join("\n", texts);
-                    if (!joined.Contains(fragment)) continue;
-                    text = joined;
-                    Screenshot("f5-message.png");
-                    var ok = dialog.FindFirst(TreeScope.Descendants, new AndCondition(
-                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button), new PropertyCondition(AutomationElement.NameProperty, "OK")));
-                    ((InvokePattern)ok.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-                    return true;
-                }
+                    // Only dialogs: the main window's own tree is large and never holds the message box.
+                    var windows = AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, processId));
+                    foreach (AutomationElement window in windows)
+                    {
+                        var candidates = window.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window)).Cast<AutomationElement>()
+                            .Concat((IntPtr)window.Current.NativeWindowHandle == mainWindow ? Enumerable.Empty<AutomationElement>() : new[] { window });
+                        foreach (var dialog in candidates)
+                        {
+                            var texts = dialog.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                                .Select(e => e.Current.Name).ToArray();
+                            var joined = string.Join("\n", texts);
+                            if (!joined.Contains(fragment)) continue;
+                            text = joined;
+                            screenshot = Path.Combine(evidence, "f5-message.png");
+                            CaptureWindow(mainWindow, screenshot);
+                            var buttons = dialog.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
+                                .Cast<AutomationElement>().ToArray();
+                            buttonsSeen = string.Join(", ", buttons.Select(b => "'" + b.Current.Name + "'"));
+                            var ok = buttons.FirstOrDefault(b => b.Current.Name.Replace("_", "").Replace("&", "") == "OK");
+                            if (ok != null && ok.TryGetCurrentPattern(InvokePattern.Pattern, out var invoke)) ((InvokePattern)invoke).Invoke();
+                            else if (dialog.TryGetCurrentPattern(WindowPattern.Pattern, out var closable)) ((WindowPattern)closable).Close();
+                            return true;
+                        }
+                    }
+                    return false;
+                }, 60000);
             }
-            return false;
-        }, 60000);
+            catch (Exception e) { failure = e; }
+        }) { IsBackground = true };
+        worker.SetApartmentState(System.Threading.ApartmentState.MTA);
+        worker.Start();
+        trigger();
+        Check(worker.Join(90000), "The message box automation finished within 90 s");
+        if (buttonsSeen != null) say("Message box buttons: " + buttonsSeen);
+        if (failure != null) say("Message box automation failed: " + failure.Message);
         return text ?? "";
     }
 
     public int Run()
     {
+        mainWindowHandle = (IntPtr)dte.MainWindow.HWnd;
         dte.MainWindow.Activate();
         dte.ExecuteCommand("View.SolutionExplorer");
         var project = ProjectNode();
@@ -242,8 +274,7 @@ public sealed class KotlinTargetsAcceptance
         SetStartupTarget("js");
         Check(XDocument.Load(projectFile).Root!.Elements("PropertyGroup").First(e => (string?)e.Attribute("Label") == "Vistudio").Element("StartupTarget")!.Value == "js",
             "StartupTarget js is written to the project file");
-        dte.ExecuteCommand("Debug.Start");
-        var message = CloseMessageBox("Debugging is not supported");
+        var message = CloseMessageBox("Debugging is not supported", () => dte.ExecuteCommand("Debug.Start"));
         File.WriteAllText(Path.Combine(evidence, "f5-message.txt"), message);
         Check(message.Contains("JS, Node.js") && message.Contains(":js") && message.Contains("Ctrl+F5") && message.Contains(":jsNodeDevelopmentRun"),
             "F5 on the JS startup target shows the 'debugging not supported' message with the Gradle run task");

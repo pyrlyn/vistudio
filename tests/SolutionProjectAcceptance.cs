@@ -506,14 +506,47 @@ public sealed class SolutionProjectAcceptance
         // its own DTE proxy from the running object table: calling through this STA thread's proxy would wait for this thread,
         // which does not pump COM messages while it waits for the dialog.
         GetWindowThreadProcessId((IntPtr)dte.MainWindow.HWnd, out var processId);
+        string? note = null;
         var worker = new Thread(() =>
         {
             try { ((DTE2)FindDte(processId)!).ExecuteCommand("Tools.Options", "9661d77a-63ae-494d-9699-9e6df41fc601"); }
-            catch (Exception e) { say("NOTE: Tools.Options returned: " + e.Message); }
+            catch (Exception e) { note = "NOTE: Tools.Options returned: " + e.Message; }
         }) { IsBackground = true };
         worker.SetApartmentState(ApartmentState.MTA);
         worker.Start();
-        var main = System.Windows.Automation.AutomationElement.FromHandle((IntPtr)dte.MainWindow.HWnd);
+        var mainWindow = (IntPtr)dte.MainWindow.HWnd;
+        // UI Automation runs on an MTA thread too: from this STA thread, ValuePattern.SetValue on the Options property grid
+        // did not return until the dialog closed (seen on Visual Studio 18.12; the same call from an MTA thread takes ~20 ms).
+        // The worker records its checks; they are reported here, because the logging callback belongs to this thread.
+        Exception? failure = null;
+        var results = new List<KeyValuePair<bool, string>>();
+        var automation = new Thread(() =>
+        {
+            try { ChangeOption(mainWindow, value, results); }
+            catch (Exception e) { failure = e; }
+        }) { IsBackground = true };
+        automation.SetApartmentState(ApartmentState.MTA);
+        automation.Start();
+        Check(automation.Join(120000), "The Options dialog interaction finished within 120 s");
+        lock (results) foreach (var result in results) Check(result.Key, result.Value);
+        if (failure != null) throw new Exception("Options dialog automation failed: " + failure.Message, failure);
+        Check(worker.Join(30000), "The Options dialog closed with OK");
+        if (note != null) say(note);
+        var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", "settings.xml");
+        Check(File.Exists(settings) && File.ReadAllText(settings).Contains("<ShowHiddenFiles>" + (value ? "true" : "false") + "</ShowHiddenFiles>"),
+            "OK saved ShowHiddenFiles=" + value.ToString().ToLowerInvariant() + " to the Vistudio settings file");
+    }
+
+    private static bool Record(List<KeyValuePair<bool, string>> results, bool condition, string message)
+    {
+        lock (results) results.Add(new KeyValuePair<bool, string>(condition, message));
+        return condition;
+    }
+
+    /// <summary>Finds the open Options dialog, sets 'Show hidden files' in its property grid and presses OK. Runs on an MTA thread.</summary>
+    private void ChangeOption(IntPtr mainWindow, bool value, List<KeyValuePair<bool, string>> results)
+    {
+        var main = System.Windows.Automation.AutomationElement.FromHandle(mainWindow);
         System.Windows.Automation.AutomationElement? dialog = null, row = null;
         Wait(() =>
         {
@@ -526,22 +559,18 @@ public sealed class SolutionProjectAcceptance
                 .FirstOrDefault(e => e.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out _));
             return row != null;
         }, 30000);
-        Check(dialog != null && row != null, "Tools > Options opens the Kotlin page with the 'Show hidden files' option");
+        if (!Record(results, dialog != null && row != null, "Tools > Options opens the Kotlin page with the 'Show hidden files' option")) return;
         var pattern = (System.Windows.Automation.ValuePattern)row!.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
         pattern.SetValue(value ? "True" : "False");
         Thread.Sleep(500);
-        Check(pattern.Current.Value == (value ? "True" : "False"), "The option grid shows Show hidden files = " + pattern.Current.Value);
+        if (!Record(results, pattern.Current.Value == (value ? "True" : "False"), "The option grid shows Show hidden files = " + pattern.Current.Value)) return;
         // OK is the Win32 child button with control id 1 (IDOK). VS 18 exposes it to UI Automation as a pattern-less Pane of
         // class "Button", so it is found by id and window class and clicked with BM_CLICK on its window handle.
         var ok = dialog!.FindFirst(System.Windows.Automation.TreeScope.Children, new System.Windows.Automation.AndCondition(
             new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.AutomationIdProperty, "1"),
             new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ClassNameProperty, "Button")));
-        Check(ok != null && ok.Current.NativeWindowHandle != 0, "The Options dialog has an OK button");
+        if (!Record(results, ok != null && ok.Current.NativeWindowHandle != 0, "The Options dialog has an OK button")) return;
         PostMessage((IntPtr)ok!.Current.NativeWindowHandle, 0x00F5 /* BM_CLICK */, IntPtr.Zero, IntPtr.Zero);
-        Check(worker.Join(30000), "The Options dialog closed with OK");
-        var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", "settings.xml");
-        Check(File.Exists(settings) && File.ReadAllText(settings).Contains("<ShowHiddenFiles>" + (value ? "true" : "false") + "</ShowHiddenFiles>"),
-            "OK saved ShowHiddenFiles=" + value.ToString().ToLowerInvariant() + " to the Vistudio settings file");
     }
 
     /// <summary>Open Folder, then Tools > Kotlin: Create or Open .kotlinproj creates metadata, opens it as a project and imports it.</summary>

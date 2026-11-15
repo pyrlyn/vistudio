@@ -2,51 +2,73 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using EnvDTE;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace Vistudio
 {
     /// <summary>
-    /// Minimal DTE automation object (VSHPROPID_ExtObject) of a Kotlin project. The New Project template engine requires it
-    /// after the project factory created the project; it exposes identity only. Items, code model and configurations are
-    /// not automated: the project tree is read-only and Gradle owns the build.
+    /// Minimal DTE automation object (VSHPROPID_ExtObject) of a Kotlin or language project. The New Project template engine
+    /// requires it after the project factory created the project; it exposes identity only. Items, code model and
+    /// configurations are not automated: the project tree is read-only and each project's own tool owns the build.
     /// </summary>
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     public sealed class KotlinProjectAutomation : Project
     {
+        private readonly IVsHierarchy hierarchy;
         private readonly string filePath;
+        private readonly Guid projectType;
         private readonly Func<string> name;
 
-        internal KotlinProjectAutomation(string filePath, Func<string> name)
+        internal KotlinProjectAutomation(IVsHierarchy hierarchy, string filePath, Guid projectType, Func<string> name)
         {
+            this.hierarchy = hierarchy;
             this.filePath = filePath;
+            this.projectType = projectType;
             this.name = name;
         }
 
-        public string Name { get => name(); set => throw new NotSupportedException("Rename the Kotlin project in its Gradle settings."); }
+        public string Name { get => name(); set => throw new NotSupportedException("Rename the project through its own tool's settings."); }
         public string FileName => filePath;
         public string FullName => filePath;
-        public string UniqueName => filePath;
-        public string Kind => "{" + KotlinProjectFactory.Id.ToUpperInvariant() + "}";
+
+        /// <summary>
+        /// The solution's own unique name (a path relative to the solution for projects below it). DTE finds projects by
+        /// it: Solution.Remove, SolutionBuild.BuildProject and the solution contexts fail with E_FAIL for any other value.
+        /// </summary>
+        public string UniqueName =>
+            // Out-of-process automation clients call this object on an RPC thread; the solution answers on the UI thread.
+            OnMainThread(() =>
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return Package.GetGlobalService(typeof(SVsSolution)) is IVsSolution solution
+                    && ErrorHandler.Succeeded(solution.GetUniqueNameOfProject(hierarchy, out var unique)) && !string.IsNullOrEmpty(unique)
+                    ? unique : filePath;
+            });
+
+        public string Kind => projectType.ToString("B").ToUpperInvariant();
         public bool IsDirty { get => false; set { } }
         public bool Saved { get => true; set { } }
-        public DTE DTE
+        public DTE DTE => OnMainThread(() =>
         {
-            get
-            {
-                ThreadHelper.ThrowIfNotOnUIThread();
-                return (DTE)Package.GetGlobalService(typeof(DTE));
-            }
-        }
-        public Projects Collection
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return (DTE)Package.GetGlobalService(typeof(DTE));
+        });
+
+        public Projects Collection => OnMainThread(() =>
         {
-            get
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return ((DTE)Package.GetGlobalService(typeof(DTE))).Solution.Projects;
+        });
+
+        private static T OnMainThread<T>(Func<T> read) =>
+            ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
-                ThreadHelper.ThrowIfNotOnUIThread();
-                return DTE.Solution.Projects;
-            }
-        }
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                return read();
+            });
         // The .kotlinproj is saved by the Properties window and Gradle import as it changes; there is nothing pending to save.
         public void Save(string FileName = "") { }
         public void SaveAs(string NewFileName) => throw new NotSupportedException("Kotlin project files cannot be saved under another name.");

@@ -38,15 +38,25 @@ namespace Vistudio.Languages
             if ((grfCreateFlags & (uint)__VSCREATEPROJFLAGS.CPF_CLONEFILE) != 0)
             {
                 // File > New > Project: the .vstemplate's project file is a stub naming the language; generate the project.
-                var stub = LanguageProjectTemplate.TryReadStub(path)
-                    ?? throw new NotSupportedException("Only Vistudio language project templates can create these projects. Open existing projects with File > Open > Project/Solution.");
-                var name = string.IsNullOrWhiteSpace(pszName) ? stub.ProjectName : Path.GetFileNameWithoutExtension(pszName);
+                // A template made with Project > Export Template carries a real project file instead: copy it.
+                var template = LanguageProjectTemplate.TryReadStub(path);
                 var folder = Path.GetFullPath(string.IsNullOrWhiteSpace(pszLocation) ? Path.GetDirectoryName(path)! : pszLocation);
-                // A template engine that writes the stub straight into the destination leaves it where the real project file goes.
-                if (string.Equals(Path.GetDirectoryName(path), folder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) File.Delete(path);
-                var wrapper = Path.Combine(Path.GetDirectoryName(typeof(LanguageProjectFactory).Assembly.Location)!, "Templates", "Wrapper");
-                path = LanguageProjectTemplate.Create(folder, stub.Language, name, wrapper).FilePath;
-                package.Log("Created " + stub.Language.DisplayName + " project " + path);
+                if (template == null)
+                {
+                    var exportedName = string.IsNullOrWhiteSpace(pszName) ? Path.GetFileNameWithoutExtension(path) : Path.GetFileNameWithoutExtension(pszName);
+                    path = ExportedProjectTemplate.Clone(path, folder, exportedName);
+                    package.Log("Created project " + path + " from an exported template");
+                }
+                else
+                {
+                    var stub = template.Value;
+                    var name = string.IsNullOrWhiteSpace(pszName) ? stub.ProjectName : Path.GetFileNameWithoutExtension(pszName);
+                    // A template engine that writes the stub straight into the destination leaves it where the real project file goes.
+                    if (string.Equals(Path.GetDirectoryName(path), folder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) File.Delete(path);
+                    var wrapper = Path.Combine(Path.GetDirectoryName(typeof(LanguageProjectFactory).Assembly.Location)!, "Templates", "Wrapper");
+                    path = LanguageProjectTemplate.Create(folder, stub.Language, name, wrapper).FilePath;
+                    package.Log("Created " + stub.Language.DisplayName + " project " + path);
+                }
             }
             else if ((grfCreateFlags & (uint)__VSCREATEPROJFLAGS.CPF_OPENFILE) == 0)
                 throw new NotSupportedException("Create language projects with File > New > Project.");

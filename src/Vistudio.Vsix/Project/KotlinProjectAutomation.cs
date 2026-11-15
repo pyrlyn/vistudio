@@ -73,7 +73,8 @@ namespace Vistudio
         public void Save(string FileName = "") { }
         public void SaveAs(string NewFileName) => throw new NotSupportedException("Kotlin project files cannot be saved under another name.");
         public void Delete() => throw new NotSupportedException("Remove the Kotlin project from the solution instead.");
-        public ProjectItems ProjectItems => null!;
+        /// <summary>The files and folders under the project folder (Export Template, New Project from an exported template).</summary>
+        public ProjectItems ProjectItems => new ProjectFolderItems(this, Path.GetDirectoryName(filePath), this);
         public Properties Properties => null!;
         public object Object => null!;
         public object get_Extender(string ExtenderName) => null!;

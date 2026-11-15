@@ -60,8 +60,18 @@ namespace Vistudio
         private string? CreateFromTemplate(string stubPath, string location, string name)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            var stub = KotlinProjectTemplate.TryReadStub(stubPath)
-                ?? throw new NotSupportedException("Only Vistudio Kotlin project templates can create .kotlinproj projects. Open existing projects with File > Open > Project/Solution.");
+            var template = KotlinProjectTemplate.TryReadStub(stubPath);
+            if (template == null)
+            {
+                // A template made with Project > Export Template carries a real .kotlinproj: copy it without the original
+                // folder's Gradle import, which the new project runs again once it is loaded.
+                var exportedName = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(stubPath) : Path.GetFileNameWithoutExtension(name);
+                var exportedFolder = Path.GetFullPath(string.IsNullOrWhiteSpace(location) ? Path.GetDirectoryName(stubPath)! : location);
+                var created = ExportedProjectTemplate.Clone(stubPath, exportedFolder, exportedName, "GradleImport", "DetectedTools");
+                package.Environment.Log("Created Kotlin project " + created + " from an exported template");
+                return created;
+            }
+            var stub = template.Value;
             var projectName = string.IsNullOrWhiteSpace(name) ? stub.ProjectName : Path.GetFileNameWithoutExtension(name);
             IReadOnlyList<string>? targets = null;
             if (stub.Kind == KotlinTemplateKind.Multiplatform && (targets = KotlinTemplateTargetsDialog.Choose(projectName)) == null) return null;

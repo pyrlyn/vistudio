@@ -23,12 +23,15 @@ namespace Vistudio
     /// in their standard editors. Shared by the Kotlin project and the language projects; each supplies its metadata,
     /// tree, icons, browse objects and configurations. The project's own tool stays the build system.
     /// </summary>
-    internal abstract class TreeProjectNode : IVsUIHierarchy, IVsProject3, IVsPersistHierarchyItem, IVsGetCfgProvider, IOleCommandTarget
+    internal abstract class TreeProjectNode : IVsUIHierarchy, IVsProject3, IVsPersistHierarchyItem, IVsGetCfgProvider, IOleCommandTarget, IPersistFileFormat
     {
         protected const uint Root = VSConstants.VSITEMID_ROOT;
         private const uint Nil = VSConstants.VSITEMID_NIL;
         private static readonly string[] IgnoredSegments = { "\\build\\", "\\.gradle\\", "\\.kotlin\\", "\\.idea\\", "\\.vs\\", "\\out\\", "\\.git\\",
             "\\target\\", "\\zig-out\\", "\\.zig-cache\\", "\\zig-cache\\", "\\.dart_tool\\", "\\node_modules\\" };
+
+        /// <summary>Build output and tool caches (a folder path ends with a separator): not project content.</summary>
+        internal static bool IsBuildOutput(string path) => IgnoredSegments.Any(s => path.IndexOf(s, StringComparison.OrdinalIgnoreCase) >= 0);
 
         protected readonly AsyncPackage Package;
         private readonly Dictionary<uint, Item> items = new Dictionary<uint, Item>();
@@ -717,6 +720,43 @@ namespace Vistudio
 
         public int AddItem(uint itemidLoc, VSADDITEMOPERATION dwAddItemOperation, string pszItemName, uint cFilesToOpen, string[] rgpszFilesToOpen, IntPtr hwndDlgOwner, VSADDRESULT[] pResult) =>
             VSConstants.E_NOTIMPL;
+
+        #endregion
+
+        #region IPersistFileFormat
+
+        // The solution writes a loaded project's line into the .sln only if the project implements IPersistFileFormat;
+        // without it every save dropped all Vistudio projects from the solution file (unloaded ones were kept).
+        // The project file itself is written whenever a setting changes, so there is never anything pending to save.
+
+        public int GetClassID(out Guid pClassID) { pClassID = ProjectTypeGuid; return VSConstants.S_OK; }
+
+        public int IsDirty(out int pfIsDirty) { pfIsDirty = 0; return VSConstants.S_OK; }
+
+        public int InitNew(uint nFormatIndex) => VSConstants.S_OK;
+
+        public int Load(string pszFilename, uint grfMode, int fReadOnly) =>
+            string.Equals(Path.GetFullPath(pszFilename), FilePath, StringComparison.OrdinalIgnoreCase) ? VSConstants.S_OK : VSConstants.E_NOTIMPL;
+
+        public int Save(string pszFilename, int fRemember, uint nFormatIndex) =>
+            string.IsNullOrEmpty(pszFilename) || string.Equals(Path.GetFullPath(pszFilename), FilePath, StringComparison.OrdinalIgnoreCase)
+                ? VSConstants.S_OK : VSConstants.E_NOTIMPL;
+
+        public int SaveCompleted(string pszFilename) => VSConstants.S_OK;
+
+        public int GetCurFile(out string ppszFilename, out uint pnFormatIndex)
+        {
+            ppszFilename = FilePath;
+            pnFormatIndex = 0;
+            return VSConstants.S_OK;
+        }
+
+        public int GetFormatList(out string ppszFormatList)
+        {
+            var extension = Path.GetExtension(FilePath);
+            ppszFormatList = "Vistudio project (*" + extension + ")\n*" + extension + "\n";
+            return VSConstants.S_OK;
+        }
 
         #endregion
 

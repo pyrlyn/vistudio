@@ -285,7 +285,7 @@ internal static class BazelTests
         File.WriteAllText(Path.Combine(bazelFolder, "bazelisk.cmd"), "@echo off\r\n");
         var commands = project.CommandsWithNotes("build");
         check(commands.Count == 1 && commands[0].Start.Arguments.IndexOf("bazelisk.cmd", StringComparison.OrdinalIgnoreCase) >= 0 && commands[0].Start.Arguments.Contains("--disk_cache=")
-            && commands[0].CacheNote != null && commands[0].CacheNote!.StartsWith("Bazel cache"), "bazel resolves to bazelisk and gets the disk cache: " + commands[0].Start.Arguments);
+            && commands[0].Note != null && commands[0].Note!.StartsWith("Bazel cache"), "bazel resolves to bazelisk and gets the disk cache: " + commands[0].Start.Arguments);
         project.Set("BuildCache", "false");
         check(!LanguageProjectFile.Load(project.FilePath).Commands("build")[0].Arguments.Contains("--disk_cache"), "Build cache off");
 

@@ -50,6 +50,40 @@ namespace Vistudio.Core.Dart
             return null;
         }
 
+        private static readonly Regex WorkspaceMember = new Regex(@"^resolution:\s*['""]?workspace['""]?\s*(?:#.*)?$", RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// Why the package in <paramref name="root"/> needs <c>pub get</c>, or null when its dependencies are resolved
+        /// (or the folder has no pubspec.yaml): no <c>.dart_tool\package_config.json</c>, or pubspec.yaml or pubspec.lock
+        /// is newer than it. A pub workspace member (<c>resolution: workspace</c>) uses the nearest package_config.json
+        /// above it, which <c>pub get</c> in any member writes for the whole workspace.
+        /// </summary>
+        public static string? UnresolvedReason(string root)
+        {
+            try
+            {
+                var pubspec = Path.Combine(root, "pubspec.yaml");
+                if (!File.Exists(pubspec)) return null;
+                var config = Path.Combine(root, ".dart_tool", "package_config.json");
+                if (WorkspaceMember.IsMatch(File.ReadAllText(pubspec)))
+                {
+                    var folder = Path.GetDirectoryName(Path.GetFullPath(root).TrimEnd('\\', '/'));
+                    while (!File.Exists(config) && !string.IsNullOrEmpty(folder))
+                    {
+                        config = Path.Combine(folder, ".dart_tool", "package_config.json");
+                        folder = Path.GetDirectoryName(folder);
+                    }
+                }
+                if (!File.Exists(config)) return "no .dart_tool\\package_config.json";
+                var resolved = File.GetLastWriteTimeUtc(config);
+                if (File.GetLastWriteTimeUtc(pubspec) > resolved) return "pubspec.yaml changed after the last pub get";
+                var lockFile = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(config))!, "pubspec.lock");
+                if (File.Exists(lockFile) && File.GetLastWriteTimeUtc(lockFile) > resolved) return "pubspec.lock changed after the last pub get";
+                return null;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException) { return null; }
+        }
+
         public static bool IsDartFile(string? path) => path != null && path.EndsWith(".dart", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>A unit/widget test file: <c>*_test.dart</c> under <c>test\</c>.</summary>

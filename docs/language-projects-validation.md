@@ -98,7 +98,7 @@ With the Export Template and solution-save changes (built from HEAD `ca1b205` pl
 Found and not fixed:
 
 - **Exported templates do not show in File > New > Project.** Visual Studio indexes them (`NpdProjectTemplateCache`), but the wizard writes no `LanguageTag`, `PlatformTag` or `ProjectTypeTag`, and the dialog lists no untagged template of the Vistudio project types. A copy with the three tags added to its `.vstemplate` was listed under Dart and created DartApp1 as above. Adding the tags by hand, or creating the project with `Solution.AddFromTemplate`, works around it.
-- **Build of a Dart project whose dependencies are not resolved fails.** DartApp1 (no `.dart_tool`, which the template leaves out like any fresh clone) failed `dart analyze` with "Target of URI doesn't exist: 'package:dartapp/dartapp.dart'" until `dart pub get` ran, after which it found no issues. Dart debugging runs `pub get` first; Build does not.
+- **Build of a Dart project whose dependencies are not resolved fails.** DartApp1 (no `.dart_tool`, which the template leaves out like any fresh clone) failed `dart analyze` with "Target of URI doesn't exist: 'package:dartapp/dartapp.dart'" until `dart pub get` ran, after which it found no issues. Dart debugging runs `pub get` first; Build does not. *Since addressed (2026-11-16), see "Dart Build resolves dependencies" below; not yet re-checked in Visual Studio.*
 - **Project > Connected Services > Manage Connected Services** does nothing for these projects.
 - In a `.c` file of a Vistudio project, the C/C++ editor's project dropdown says "Miscellaneous Files" (C++ IntelliSense does not know the project).
 - The Error List entry for a build that cannot start shows line 0.
@@ -114,3 +114,9 @@ Found and not fixed:
 - Zig and WebAssembly templates write no package manifest, so those projects show no Packages node until a `build.zig.zon`, `wkg.toml` or `world.wit` exists.
 - Java F5 and every Kotlin F5/Ctrl+F5 on the JVM (no kotlin-lsp on the machine); the Kotlin Multiplatform template (interactive target dialog).
 - x64 Visual Studio.
+
+## Dart Build resolves dependencies (2026-11-16)
+
+Build of a native `.dartproj` now runs `dart pub get` (`flutter pub get` for Flutter packages) in the package folder before the build commands when the package is unresolved: no `.dart_tool\package_config.json`, or `pubspec.yaml` / `pubspec.lock` newer than it (a pub workspace member uses the nearest `package_config.json` above it). Rebuild runs it between Clean and Build when a Clean command is set. Nothing is added when the build commands already run `pub get`, for Run and Test (the tools resolve by themselves) or for Bazel builds. The Build pane prints why it runs. F5 for Dart uses the same staleness check instead of checking only that `package_config.json` exists.
+
+Validation performed: `Vistudio.Tests --packages none` PASS, 515 assertions, including the new Dart dependency checks with stand-in `dart.bat` / `flutter.bat` (no SDK run); `Vistudio.Tests --bazel` PASS, 120 assertions; `Vistudio.Vsix.csproj` builds with Visual Studio MSBuild. Not yet checked: a Solution Build of DartApp1 in Visual Studio against a real Dart SDK.

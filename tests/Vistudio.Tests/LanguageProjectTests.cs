@@ -14,6 +14,76 @@ internal static class LanguageProjectTests
             Template(Path.Combine(root, "templates", language.Id), language, check);
         Validation(Path.Combine(root, "validation"), check);
         Defaults(Path.Combine(root, "defaults"), check);
+        DartDependencies(Path.Combine(root, "dart-dependencies"), check);
+    }
+
+    /// <summary>Build of a .dartproj runs pub get first when dependencies are unresolved or stale (fake dart.bat/flutter.bat in the project folder).</summary>
+    private static void DartDependencies(string folder, Action<bool, string> check)
+    {
+        var app = Path.Combine(folder, "app");
+        Directory.CreateDirectory(app);
+        var pubspec = Path.Combine(app, "pubspec.yaml");
+        File.WriteAllText(pubspec, "name: app\r\nenvironment:\r\n  sdk: ^3.0.0\r\n");
+        File.WriteAllText(Path.Combine(app, "dart.bat"), "@exit /b 0");
+        var project = LanguageProjectFile.Create(app, LanguageCatalog.Dart, "app");
+        project.Set("WorkingDirectory", "bin");
+        Directory.CreateDirectory(Path.Combine(app, "bin"));
+        var past = DateTime.UtcNow.AddHours(-2);
+        File.SetLastWriteTimeUtc(pubspec, past);
+
+        var build = project.CommandsWithNotes("build");
+        check(build.Count == 2 && build[0].Start.Arguments.IndexOf("dart.bat", StringComparison.OrdinalIgnoreCase) >= 0 && build[0].Start.Arguments.Contains("pub") && build[0].Start.Arguments.Contains("get"),
+            "Unresolved Dart package: pub get runs before the build command: " + (build.Count == 0 ? "" : build[0].Start.Arguments));
+        check(build.Count == 2 && build[0].Start.WorkingDirectory == app && build[1].Start.WorkingDirectory == Path.Combine(app, "bin"),
+            "pub get runs in the package folder, the build in the working directory");
+        check(build.Count == 2 && build[0].Note != null && build[0].Note!.Contains("package_config.json"), "The output pane says why pub get runs: " + build[0].Note);
+        check(project.Commands("run").Count == 1 && project.Commands("test").Count == 1, "Run and Test resolve by themselves; nothing is added");
+
+        var config = Path.Combine(app, ".dart_tool", "package_config.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(config)!);
+        File.WriteAllText(config, "{\"configVersion\":2,\"packages\":[]}");
+        File.SetLastWriteTimeUtc(config, past.AddMinutes(10));
+        check(project.Commands("build").Count == 1 && Vistudio.Core.Dart.DartProject.UnresolvedReason(app) == null, "Resolved package: the build runs alone");
+        File.WriteAllText(Path.Combine(app, "pubspec.lock"), "packages: {}\r\n");
+        File.SetLastWriteTimeUtc(Path.Combine(app, "pubspec.lock"), past.AddMinutes(20));
+        check(Vistudio.Core.Dart.DartProject.UnresolvedReason(app)?.Contains("pubspec.lock") == true, "A pubspec.lock newer than package_config.json is stale");
+        File.SetLastWriteTimeUtc(Path.Combine(app, "pubspec.lock"), past.AddMinutes(5));
+        File.SetLastWriteTimeUtc(pubspec, past.AddMinutes(30));
+        var stale = project.CommandsWithNotes("build");
+        check(stale.Count == 2 && stale[0].Note!.Contains("pubspec.yaml changed"), "An edited pubspec.yaml runs pub get again: " + stale[0].Note);
+
+        project.Set("CleanCommand", "cmd.exe /c exit 0");
+        File.SetLastWriteTimeUtc(pubspec, past);
+        var rebuild = project.Commands("rebuild");
+        check(rebuild.Count == 3 && rebuild[1].Arguments.Contains("pub") && rebuild[1].WorkingDirectory == app, "Rebuild resolves again between clean and build");
+        project.Set("BuildCommand", "dart pub get && dart analyze");
+        File.Delete(config);
+        check(project.Commands("build").Count == 2, "A build command that already runs pub get gets no second one");
+        project.Set("BuildCommand", "");
+        check(project.Commands("build").Count == 0, "No build command: nothing runs");
+        project.Set("BuildCommand", "dart analyze --fatal-infos"); // not the Native default, so the Bazel switch keeps it
+        project.Set("BuildSystem", "Bazel");
+        check(!project.Commands("build").Any(c => c.Arguments.Contains("pub")), "Bazel builds resolve their own dependencies");
+
+        var flutter = Path.Combine(folder, "flutter_app");
+        Directory.CreateDirectory(flutter);
+        File.WriteAllText(Path.Combine(flutter, "pubspec.yaml"), "name: flutter_app\r\ndependencies:\r\n  flutter:\r\n    sdk: flutter\r\n");
+        File.WriteAllText(Path.Combine(flutter, "flutter.bat"), "@exit /b 0");
+        var flutterProject = LanguageProjectFile.Create(flutter, LanguageCatalog.Dart, "flutter_app");
+        var flutterBuild = flutterProject.Commands("build");
+        check(flutterBuild.Count == 2 && flutterBuild[0].Arguments.IndexOf("flutter.bat", StringComparison.OrdinalIgnoreCase) >= 0 && flutterBuild[0].Arguments.Contains("pub"), "Flutter packages resolve with flutter pub get");
+
+        var workspace = Path.Combine(folder, "workspace");
+        var member = Path.Combine(workspace, "packages", "member");
+        Directory.CreateDirectory(member);
+        File.WriteAllText(Path.Combine(workspace, "pubspec.yaml"), "name: _\r\nworkspace:\r\n  - packages/member\r\n");
+        File.WriteAllText(Path.Combine(member, "pubspec.yaml"), "name: member\r\nresolution: workspace\r\n");
+        check(Vistudio.Core.Dart.DartProject.UnresolvedReason(member) != null, "Unresolved pub workspace member");
+        Directory.CreateDirectory(Path.Combine(workspace, ".dart_tool"));
+        File.SetLastWriteTimeUtc(Path.Combine(member, "pubspec.yaml"), past);
+        File.WriteAllText(Path.Combine(workspace, ".dart_tool", "package_config.json"), "{}");
+        check(Vistudio.Core.Dart.DartProject.UnresolvedReason(member) == null, "A workspace member uses the workspace root's package_config.json");
+        check(Vistudio.Core.Dart.DartProject.UnresolvedReason(Path.Combine(folder, "no-package")) == null, "A folder without pubspec.yaml needs no pub get");
     }
 
     private static void Commands(Action<bool, string> check)

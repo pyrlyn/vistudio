@@ -67,9 +67,10 @@ namespace Vistudio.Dart
                 var sdk = await environment.RequireSdkAsync();
                 if (project.IsFlutter) sdk.RequireFlutter();
                 await SaveAllAsync();
-                if (!File.Exists(Path.Combine(project.Root, ".dart_tool", "package_config.json")))
+                var unresolved = DartProject.UnresolvedReason(project.Root);
+                if (unresolved != null)
                 {
-                    environment.Log("Resolving dependencies first (pub get)...");
+                    environment.Log("Resolving dependencies first (" + unresolved + "): pub get...");
                     var code = await OwnedProcess.RunAsync(DartCommandFactory.PubGet(sdk, project), environment.Log, CancellationToken.None);
                     if (code != 0) throw new InvalidOperationException("pub get failed (exit code " + code + "); see the Dart Output pane.");
                 }

@@ -233,11 +233,47 @@ namespace Vistudio.Core.Languages
         /// <summary>The commands of <paramref name="operation"/> (build, rebuild, run, test, clean) ready to start in order.</summary>
         public IReadOnlyList<ProcessStartInfo> Commands(string operation) => CommandsWithNotes(operation).Select(c => c.Start).ToList();
 
-        /// <summary><see cref="Commands"/> with what the build cache did for each (for the output pane).</summary>
-        public IReadOnlyList<(ProcessStartInfo Start, string? CacheNote)> CommandsWithNotes(string operation)
+        /// <summary><see cref="Commands"/> with a note for each (for the output pane): why it was added, what the build cache did.</summary>
+        public IReadOnlyList<(ProcessStartInfo Start, string? Note)> CommandsWithNotes(string operation)
         {
-            if (operation == "rebuild") return CommandsWithNotes("clean").Concat(CommandsWithNotes("build")).ToList();
-            return CommandLines(operation).Select(c => (c.ToStartInfo(this), c.CacheNote)).ToList();
+            IReadOnlyList<LanguageCommand> lines;
+            if (operation == "rebuild")
+            {
+                var clean = CommandLines("clean");
+                lines = clean.Concat(WithDependencies(CommandLines("build"), cleaned: clean.Count != 0)).ToList();
+            }
+            else lines = operation == "build" ? WithDependencies(CommandLines("build"), cleaned: false) : CommandLines(operation);
+            return lines.Select(c =>
+            {
+                var start = c.ToStartInfo(this);
+                var note = c.Note != null && c.CacheNote != null ? c.Note + " " + c.CacheNote : c.Note ?? c.CacheNote;
+                return (start, note);
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Dart packages built by their own tool: <c>dart pub get</c> (<c>flutter pub get</c> for Flutter packages) in the
+        /// project folder before the build commands when the dependencies are unresolved
+        /// (<see cref="DartProject.UnresolvedReason"/>), or after a clean step, which may delete .dart_tool. Analyze and
+        /// the other build commands do not resolve by themselves. Nothing is added when the build commands already run
+        /// pub get, there are none, or Bazel builds.
+        /// </summary>
+        private IReadOnlyList<LanguageCommand> WithDependencies(IReadOnlyList<LanguageCommand> build, bool cleaned)
+        {
+            if (build.Count == 0 || Language != LanguageCatalog.Dart || BuildSystem != LanguageBuildSystem.Native) return build;
+            if (!File.Exists(Path.Combine(DirectoryPath, "pubspec.yaml"))) return build;
+            if (build.Any(IsPubGet)) return build;
+            var reason = cleaned ? "the clean step may have removed .dart_tool" : DartProject.UnresolvedReason(DirectoryPath);
+            if (reason == null) return build;
+            var tool = LanguageProjectDefaults.IsFlutter(DirectoryPath) ? "flutter" : "dart";
+            var pubGet = new LanguageCommand(tool, new[] { "pub", "get" }, DirectoryPath, "Dependencies are not resolved (" + reason + "); running " + tool + " pub get first.");
+            return new[] { pubGet }.Concat(build).ToList();
+
+            static bool IsPubGet(LanguageCommand c)
+            {
+                var tool = BuildCache.Tool(c.Program);
+                return (tool == "dart" || tool == "flutter") && c.Arguments.Count >= 2 && c.Arguments[0] == "pub" && (c.Arguments[1] == "get" || c.Arguments[1] == "upgrade");
+            }
         }
 
         private IReadOnlyList<LanguageCommand> CommandLines(string operation)
@@ -284,14 +320,20 @@ namespace Vistudio.Core.Languages
     /// <summary>One program and its arguments from a command setting.</summary>
     public sealed class LanguageCommand
     {
-        public LanguageCommand(string program, IReadOnlyList<string> arguments)
+        /// <param name="directory">Where the command runs instead of the project's working directory.</param>
+        /// <param name="note">Why the command was added, for the output pane.</param>
+        public LanguageCommand(string program, IReadOnlyList<string> arguments, string? directory = null, string? note = null)
         {
             Program = program;
             Arguments = arguments;
+            WorkingDirectory = directory;
+            Note = note;
         }
 
         public string Program { get; }
         public IReadOnlyList<string> Arguments { get; }
+        public string? WorkingDirectory { get; }
+        public string? Note { get; }
 
         public override string ToString() => ZigArguments.Join(new[] { Program }.Concat(Arguments));
 
@@ -304,7 +346,7 @@ namespace Vistudio.Core.Languages
         {
             var executable = Resolve(project) ?? throw new FileNotFoundException(
                 "'" + Program + "' was not found in the project folder, its tool folders or PATH. Install it or set Tool folders in the project properties.");
-            var directory = project.WorkingDirectory;
+            var directory = WorkingDirectory ?? project.WorkingDirectory;
             var extension = Path.GetExtension(executable);
             var cache = BuildCache.Apply(executable, Arguments, project.CacheOptions());
             CacheNote = cache.Note;

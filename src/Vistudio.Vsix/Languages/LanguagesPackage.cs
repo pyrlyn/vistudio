@@ -138,7 +138,7 @@ namespace Vistudio.Languages
         internal async Task<bool> RunCommandsAsync(LanguageProjectFile project, string operation, Action<string> mirror, CancellationToken token,
             Action<string>? problem = null, Action<int>? started = null)
         {
-            IReadOnlyList<(System.Diagnostics.ProcessStartInfo Start, string? CacheNote)> commands;
+            IReadOnlyList<(System.Diagnostics.ProcessStartInfo Start, string? Note)> commands;
             try { commands = await Task.Run(() => project.CommandsWithNotes(operation), token); }
             catch (Exception e) when (e is System.IO.FileNotFoundException || e is ArgumentException)
             {
@@ -154,8 +154,8 @@ namespace Vistudio.Languages
             }
             for (var i = 0; i < commands.Count; i++)
             {
-                var (command, cacheNote) = commands[i];
-                if (cacheNote != null) mirror(cacheNote);
+                var (command, note) = commands[i];
+                if (note != null) mirror(note);
                 mirror("> " + System.IO.Path.GetFileName(command.FileName) + " " + command.Arguments);
                 var exit = await OwnedProcess.RunAsync(command, mirror, mirror, token, i == commands.Count - 1 ? started : null).ConfigureAwait(false);
                 if (exit != 0) { mirror(project.Name + ": exited with code " + exit + "."); return false; }

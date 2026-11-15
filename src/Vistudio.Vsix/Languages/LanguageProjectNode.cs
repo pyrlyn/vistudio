@@ -89,7 +89,7 @@ namespace Vistudio.Languages
         protected override void Log(string message) => package.Log(Language.DisplayName + " project: " + message);
 
         protected override object CreateBrowseObject(uint itemid, ProjectTreeNode model) =>
-            itemid == Root ? new LanguageProjectProperties(Metadata, Log, MetadataSaved) : (object)new KotlinNodeProperties(model);
+            itemid == Root ? new LanguageProjectProperties(Metadata, Log, MetadataSaved) { Hierarchy = this } : (object)new KotlinNodeProperties(model);
 
         protected override ImageMoniker? NodeMoniker(ProjectTreeNode model, bool open)
         {

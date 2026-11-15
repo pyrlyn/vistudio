@@ -25,6 +25,8 @@ namespace Vistudio.Languages
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [ProvideMenuResource("LanguageMenus.ctmenu", 1)]
     // Saving either page raises its language client's settings event, which restarts that server.
+    // The shell creates property pages by CLSID: Project > Properties of Kotlin and language projects.
+    [ProvideObject(typeof(ProjectPropertyPage), RegisterUsing = RegistrationMethod.CodeBase)]
     [ProvideOptionPage(typeof(Rust.RustOptionsPage), "Rust", "General", 0, 0, true)]
     [ProvideOptionPage(typeof(Wasm.WasmOptionsPage), "WebAssembly", "General", 0, 0, true)]
     [ProvideProjectFactory(typeof(LanguageProjectFactory), "Vistudio Languages",

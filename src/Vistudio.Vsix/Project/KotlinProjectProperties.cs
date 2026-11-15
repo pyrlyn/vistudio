@@ -16,7 +16,7 @@ namespace Vistudio
     /// watcher then refreshes the tree. Invalid input is rejected by the property grid with the validation message.
     /// </summary>
     [ComVisible(true)]
-    public sealed class KotlinProjectProperties : CustomTypeDescriptor
+    public sealed class KotlinProjectProperties : ProjectBrowseObject
     {
         private readonly string filePath;
         private readonly Action<string> log;

@@ -119,7 +119,7 @@ namespace Vistudio
 
         // The project node edits .kotlinproj settings in the Properties window; other nodes show read-only details.
         protected override object CreateBrowseObject(uint itemid, ProjectTreeNode model) =>
-            itemid == Root ? new KotlinProjectProperties(Metadata, package.Environment.Log, MetadataSaved) : (object)new KotlinNodeProperties(model);
+            itemid == Root ? new KotlinProjectProperties(Metadata, package.Environment.Log, MetadataSaved) { Hierarchy = this } : (object)new KotlinNodeProperties(model);
 
         protected override void OnClosed()
         {

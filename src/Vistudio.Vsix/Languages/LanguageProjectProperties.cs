@@ -11,7 +11,7 @@ namespace Vistudio.Languages
     /// against the file as it is on disk and saved atomically; invalid input is rejected with the reason.
     /// </summary>
     [ComVisible(true)]
-    public sealed class LanguageProjectProperties : CustomTypeDescriptor
+    public sealed class LanguageProjectProperties : ProjectBrowseObject
     {
         private readonly string filePath;
         private readonly Action<string> log;

@@ -547,8 +547,12 @@ namespace Vistudio
         int IOleCommandTarget.QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) =>
             QueryProjectCommands(pguidCmdGroup, cCmds, prgCmds);
 
-        int IOleCommandTarget.Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) =>
-            (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+        int IOleCommandTarget.Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return IsProjectProperties(pguidCmdGroup, nCmdID) ? ShowPropertyPages(selectProject: true)
+                : (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+        }
 
         // NuGet's Manage NuGet Packages assumes an MSBuild project and fails with "The project is unsupported"; each
         // project's own package manager owns its dependencies (the Packages node), so the command is hidden.
@@ -557,19 +561,50 @@ namespace Vistudio
 
         private static int QueryProjectCommands(Guid group, uint cCmds, OLECMD[] prgCmds)
         {
-            if (group != NuGetDialogCommands || cCmds == 0 || prgCmds == null)
-                return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+            if (cCmds == 0 || prgCmds == null) return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
             for (var i = 0; i < cCmds; i++)
             {
-                if (prgCmds[i].cmdID != ManageNuGetPackages) return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
-                prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_INVISIBLE);
+                if (group == NuGetDialogCommands && prgCmds[i].cmdID == ManageNuGetPackages)
+                    prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_INVISIBLE);
+                else if (IsProjectProperties(group, prgCmds[i].cmdID))
+                    prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_ENABLED);
+                else
+                    return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
             }
             return VSConstants.S_OK;
+        }
+
+        // Project > Properties (and Debug > <project> Debug Properties): the shell leaves it to the project.
+        private static bool IsProjectProperties(Guid group, uint id) =>
+            group == VSConstants.GUID_VSStandardCommandSet97 && id == (uint)VSConstants.VSStd97CmdID.ProjectProperties;
+
+        /// <summary>
+        /// Opens the property page frame on the project's settings: the frame asks the current selection's browse object
+        /// (<see cref="ISpecifyPropertyPages"/>) for its pages, here <see cref="ProjectPropertyPage"/>. From an editor or
+        /// another window (<paramref name="selectProject"/>) the selection is that window's, so the project is first selected
+        /// in Solution Explorer and that window activated; otherwise the frame says there are no pages for the selection.
+        /// </summary>
+        private int ShowPropertyPages(bool selectProject)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (!(GetService(typeof(SVsPropertyPageFrame)) is IVsPropertyPageFrame frame)) return VSConstants.E_FAIL;
+            if (selectProject && GetService(typeof(SVsUIShell)) is IVsUIShell shell)
+            {
+                var explorer = VSConstants.StandardToolWindows.SolutionExplorer;
+                if (ErrorHandler.Succeeded(shell.FindToolWindow((uint)__VSFINDTOOLWIN.FTW_fForceCreate, ref explorer, out var window)) && window != null)
+                {
+                    ErrorHandler.ThrowOnFailure(window.Show());
+                    if (ErrorHandler.Succeeded(window.GetProperty((int)__VSFPROPID.VSFPROPID_DocView, out var view)) && view is IVsUIHierarchyWindow tree)
+                        ErrorHandler.ThrowOnFailure(tree.ExpandItem(this, Root, EXPANDFLAGS.EXPF_SelectItem));
+                }
+            }
+            return frame.ShowFrame(new Guid(ProjectPropertyPage.Clsid));
         }
 
         public int ExecCommand(uint itemid, ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            if (IsProjectProperties(pguidCmdGroup, nCmdID)) return ShowPropertyPages(selectProject: false);
             if (pguidCmdGroup != VSConstants.GUID_VsUIHierarchyWindowCmds)
                 return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
             if (!items.TryGetValue(itemid, out var item))

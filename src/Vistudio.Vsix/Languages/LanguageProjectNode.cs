@@ -96,9 +96,13 @@ namespace Vistudio.Languages
             switch (model.Kind)
             {
                 case ProjectTreeKind.Project:
-                    return Language.IconId == 0 ? KnownMonikers.Application : new ImageMoniker { Guid = LanguageCatalog.IconGuid, Id = Language.IconId };
+                    var icon = LanguageIcons.ForProject(Metadata);
+                    return icon == 0 ? KnownMonikers.Application : new ImageMoniker { Guid = LanguageCatalog.IconGuid, Id = icon };
                 case ProjectTreeKind.Folder:
                     return open ? KnownMonikers.FolderOpened : KnownMonikers.FolderClosed;
+                case ProjectTreeKind.File when LanguageIcons.ForFileName(model.Path) is int file && file != 0:
+                    // BUILD and WORKSPACE have no extension, so the image service cannot map them.
+                    return new ImageMoniker { Guid = LanguageCatalog.IconGuid, Id = file };
                 case ProjectTreeKind.Message:
                     return KnownMonikers.StatusInformation;
                 default:

@@ -1,0 +1,87 @@
+{
+  "name": "Starlark",
+  "scopeName": "source.starlark",
+  "fileTypes": ["bzl", "bazel", "bzlmod", "star", "BUILD", "WORKSPACE"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#definitions" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#attributes" },
+    { "include": "#calls" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.number-sign.starlark", "match": "#.*$" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.docstring.starlark", "begin": "[rRbB]{0,2}\"\"\"", "end": "\"\"\"", "patterns": [{ "include": "#escapes" }] },
+        { "name": "string.quoted.docstring.starlark", "begin": "[rRbB]{0,2}'''", "end": "'''", "patterns": [{ "include": "#escapes" }] },
+        { "name": "string.quoted.double.starlark", "begin": "[rRbB]{0,2}\"", "end": "\"|$", "patterns": [{ "include": "#escapes" }, { "include": "#labels" }] },
+        { "name": "string.quoted.single.starlark", "begin": "[rRbB]{0,2}'", "end": "'|$", "patterns": [{ "include": "#escapes" }, { "include": "#labels" }] }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        { "name": "constant.character.escape.starlark", "match": "\\\\(?:[\\\\'\"abfnrtv0]|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[0-7]{1,3})" }
+      ]
+    },
+    "labels": {
+      "patterns": [
+        { "name": "entity.name.namespace.label.starlark", "match": "(?<=[\"'])(@{1,2}[A-Za-z0-9_.+~-]*)?//[A-Za-z0-9_./+~-]*(:[^\"']*)?" },
+        { "name": "entity.name.tag.label.starlark", "match": "(?<=[\"']):[^\"']+" }
+      ]
+    },
+    "definitions": {
+      "patterns": [
+        {
+          "match": "\\b(def)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": { "1": { "name": "storage.type.function.starlark" }, "2": { "name": "entity.name.function.starlark" } }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.starlark", "match": "\\b(if|elif|else|for|in|return|break|continue|pass|lambda)\\b" },
+        { "name": "keyword.operator.logical.starlark", "match": "\\b(and|or|not)\\b" },
+        { "name": "keyword.other.load.starlark", "match": "\\bload\\b(?=\\s*\\()" },
+        { "name": "invalid.illegal.python-only.starlark", "match": "\\b(class|import|try|except|finally|raise|while|with|yield|global|nonlocal|async|await|del)\\b" }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        { "name": "constant.language.starlark", "match": "\\b(True|False|None)\\b" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.starlark", "match": "\\b(0[xX][0-9A-Fa-f]+|0[oO][0-7]+|[0-9]+(\\.[0-9]*)?([eE][+-]?[0-9]+)?)\\b" }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(=)(?!=)",
+          "captures": { "1": { "name": "variable.parameter.attribute.starlark" }, "2": { "name": "keyword.operator.assignment.starlark" } }
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        { "name": "support.function.builtin.starlark", "match": "\\b(glob|select|package|exports_files|package_group|licenses|module|bazel_dep|use_extension|use_repo|use_repo_rule|register_toolchains|register_execution_platforms|rule|aspect|provider|macro|module_extension|repository_rule|tag_class|transition|depset|struct|fail|print|len|str|int|bool|list|dict|tuple|range|enumerate|zip|sorted|reversed|min|max|any|all|hasattr|getattr|type|Label|native|attr|ctx)\\b(?=\\s*[(.])" },
+        { "name": "entity.name.function.call.starlark", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()" }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.starlark", "match": "\\*\\*|//|==|!=|<=|>=|[-+*/%<>=|&^~]" }
+      ]
+    }
+  }
+}

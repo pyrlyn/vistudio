@@ -52,6 +52,9 @@
     <!-- Rust and WebAssembly text editors (T61, T62): Visual Studio ships the Rust grammar; the WAT grammar is ours. -->
     <Content Include="Grammars/Wat.tmLanguage.json" IncludeInVSIX="true" />
     <Content Include="Registration/RustWasmFiles.pkgdef" IncludeInVSIX="true"><Link>RustWasmFiles.pkgdef</Link></Content>
+    <!-- Bazel files: Starlark grammar, editor and icon registration. -->
+    <Content Include="Grammars/Starlark.tmLanguage.json" IncludeInVSIX="true" />
+    <Content Include="Registration/BazelFiles.pkgdef" IncludeInVSIX="true"><Link>BazelFiles.pkgdef</Link></Content>
     <None Update="source.extension.vsixmanifest"><SubType>Designer</SubType></None>
     <Content Include="Grammars/Kotlin.tmLanguage.json" IncludeInVSIX="true" />
     <Content Include="Grammars/Properties.tmLanguage.json" IncludeInVSIX="true" />
@@ -69,7 +72,7 @@
     <Resource Include="Icons/PropertiesFile.xaml" />
     <Content Include="Icons/Kotlin.imagemanifest" IncludeInVSIX="true"><Link>Kotlin.imagemanifest</Link></Content>
     <!-- File and project icons of the other languages (T58). -->
-    <Resource Include="Icons/DartFile.xaml;Icons/ZigFile.xaml;Icons/ZonFile.xaml;Icons/JavaFile.xaml;Icons/RustFile.xaml;Icons/WatFile.xaml;Icons/WasmFile.xaml;Icons/CProject.xaml;Icons/CppProject.xaml" />
+    <Resource Include="Icons/DartFile.xaml;Icons/ZigFile.xaml;Icons/ZonFile.xaml;Icons/JavaFile.xaml;Icons/RustFile.xaml;Icons/WatFile.xaml;Icons/WasmFile.xaml;Icons/CProject.xaml;Icons/CppProject.xaml;Icons/FlutterProject.xaml;Icons/BazelFile.xaml" />
     <Content Include="Icons/Languages.imagemanifest" IncludeInVSIX="true"><Link>Languages.imagemanifest</Link></Content>
     <Content Include="Registration/LanguageFiles.pkgdef" IncludeInVSIX="true"><Link>LanguageFiles.pkgdef</Link></Content>
     <Content Include="Registration/KotlinFiles.pkgdef" IncludeInVSIX="true"><Link>KotlinFiles.pkgdef</Link></Content>

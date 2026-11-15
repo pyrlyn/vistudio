@@ -22,8 +22,13 @@ namespace Vistudio.Core
             return tasks;
         }
 
-        public static ProcessStartInfo Create(string root, string javaHome, IEnumerable<string> tasks)
-            => CreateCore(root, javaHome, string.Join(" ", ParseTasks(string.Join(" ", tasks))));
+        /// <param name="buildCache">Adds --build-cache unless gradle.properties sets org.gradle.caching itself.</param>
+        public static ProcessStartInfo Create(string root, string javaHome, IEnumerable<string> tasks, bool buildCache = false)
+        {
+            var selected = string.Join(" ", ParseTasks(string.Join(" ", tasks)));
+            var cache = buildCache && Languages.BuildCache.GradleProperty(Path.GetFullPath(root), "org.gradle.caching") == null ? "--build-cache " : "";
+            return CreateCore(root, javaHome, cache + selected);
+        }
 
         public const string DiscoveryTask = "vistudioDiscoverTasks6cc1f5c0";
 

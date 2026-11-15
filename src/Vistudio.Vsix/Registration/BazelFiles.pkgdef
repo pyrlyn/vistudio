@@ -1,0 +1,27 @@
+; Bazel and Starlark files open in the code editor, where the starlark content type (Bazel/BazelContentTypes.cs) applies
+; the grammar, completion, checks and the Starlark language server. BUILD and WORKSPACE have no extension; the content
+; type maps them by file name, and language project trees give them the Bazel icon themselves.
+[$RootKey$\Editors\{8B382828-6202-11D1-8870-0000F87579D2}\Extensions]
+"bzl"=dword:00000064
+"bazel"=dword:00000064
+"bzlmod"=dword:00000064
+"star"=dword:00000064
+
+; Icon 11 of Icons/Languages.imagemanifest (LanguageIcons.BazelFile).
+[$RootKey$\ShellFileAssociations\.bzl]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"
+
+[$RootKey$\ShellFileAssociations\.bazel]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"
+
+[$RootKey$\ShellFileAssociations\.bzlmod]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"
+
+[$RootKey$\ShellFileAssociations\.star]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"
+
+[$RootKey$\ShellFileAssociations\.bazelrc]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"
+
+[$RootKey$\ShellFileAssociations\.bazelversion]
+"DefaultIconMoniker"="2d0f6a15-591d-4131-b160-d834f3945b8f:11"

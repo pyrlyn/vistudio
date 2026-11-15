@@ -35,6 +35,21 @@ Kotlin syntax highlighting, external LSP integration, Gradle builds, and JVM deb
 | T64 | todo | P2 | 4 | 0% | |
 | T65 | in progress | P2 | 3 | 40% | Anthropic / Claude Opus 5.5 |
 | T66 | in progress | P2 | 4 | 50% | Anthropic / Claude Opus 5.5 |
+| T67 | in progress | P1 | 2 | 80% | Anthropic / Claude Opus 5.5 |
+| T68 | in progress | P1 | 4 | 70% | Anthropic / Claude Opus 5.5 |
+| T69 | in progress | P1 | 4 | 70% | Anthropic / Claude Opus 5.5 |
+| T70 | in progress | P1 | 3 | 70% | Anthropic / Claude Opus 5.5 |
+
+### T67-T70. Dart/Flutter icons, Bazel, build caches
+
+Requested by the creator: a new icon for Dart/Flutter; Bazel build support with an icon; validation and completion for Bazel files (files/folders and the rest); builds with each language's cache. Creator decisions (this request): Bazel is a **build system option** of the existing language projects, not a new project type; caches are the **tool-native** ones, on by default, with an optional remote cache URL for Bazel and Gradle; the Dart file icon is redrawn and a separate **Flutter** icon marks `.dartproj` projects whose pubspec depends on Flutter. Agent choices following the existing patterns: Bazel, bazelisk, buildifier, starpls/bazel-lsp and sccache are user-installed and found through Tools > Options or PATH, never bundled; completion and checks are Vistudio's own (they read the workspace files, no `bazel query`), so they work without any Bazel tool; the language server only adds hover, navigation and its own diagnostics.
+
+- T67. Icons: `DartFile.xaml` redrawn, `FlutterProject.xaml` (image 10, Flutter `.dartproj` nodes), `BazelFile.xaml` (image 11: `.bzl`, `.bazel`, `.bzlmod`, `.star`, `.bazelrc`, `.bazelversion`, and BUILD/WORKSPACE nodes in language project trees); the Dart template image re-rendered from the new drawing.
+- T68. Bazel build system: `BuildSystem` (Native/Bazel) in language project files, chosen automatically when the project folder is a Bazel workspace root; `bazel build //...` / `run //:<name>` / `test //...` / `clean`, `bazel-bin\<name>.exe` for native debugging; `bazel` falls back to `bazelisk`; switching replaces only the commands that still hold the previous system's defaults.
+- T69. Bazel editor: `starlark` content type for BUILD, BUILD.bazel, MODULE.bazel, WORKSPACE, .bzl; Starlark grammar; Vistudio completion (files and folders in `srcs`/`hdrs`/`data`/`glob()`, `//package`, `:target`, `//package:target`, `@repository`, load() files and symbols, visibility, rules, MODULE.bazel functions, attributes); Vistudio checks (syntax, Python-only statements, load(), def in BUILD, duplicate targets, labels, missing files/packages/repositories, subpackage boundaries) and buildifier lint, as squiggles and "Bazel" Error List entries; starpls/bazel-lsp client; Tools > Options > Bazel.
+- T70. Build caches (`BuildCache`, `RemoteCache` project settings; Kotlin's Tools > Options > Kotlin > Gradle > Build cache): Bazel `--disk_cache`/`--remote_cache`, Gradle `--build-cache` and a read-only HTTP remote cache through an init script, sccache for Cargo (`RUSTC_WRAPPER`) and CMake configure (compiler launcher); Zig, Dart/Flutter and wasm-tools cache by themselves. Flags set on the command line, in `.bazelrc`, `gradle.properties` or `RUSTC_WRAPPER` win.
+
+Status: implemented; `Vistudio.Tests.exe --bazel` (120 assertions), `--packages none` (500) and the default run (1315) pass; the VSIX and icon checks pass. No Bazel, bazelisk, buildifier, starpls or sccache is installed on this machine, so nothing ran against the real tools and nothing was checked in Visual Studio yet. Results and gaps: [docs/bazel-validation.md](docs/bazel-validation.md).
 
 ### T58-T66. Eight languages: Dart, Kotlin, Zig, Java, C, C++, Wasm, Rust
 

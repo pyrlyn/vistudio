@@ -31,6 +31,8 @@ namespace Vistudio
         public string TestTasks { get => settings.TestTasks; set => settings.TestTasks = value; }
         [Category("Gradle"), DisplayName("Run tasks"), Description("Run task paths, e.g. :app:jvmRun, :app:jsNodeDevelopmentRun or :app:runDebugExecutableMingwX64. Discover actual names with Tools > Kotlin > Gradle targets and tasks.")]
         public string RunTasks { get => settings.RunTasks; set => settings.RunTasks = value; }
+        [Category("Gradle"), DisplayName("Build cache"), Description("Run Gradle tasks with --build-cache, so task outputs are reused across builds and branches. org.gradle.caching in gradle.properties wins.")]
+        public bool GradleBuildCache { get => settings.GradleBuildCache; set => settings.GradleBuildCache = value; }
         [Category("Editor"), DisplayName("Rainbow braces"), Description("Color matching curly braces. Reopen editors after changing this setting.")]
         public bool RainbowBraces { get => settings.RainbowBraces; set => settings.RainbowBraces = value; }
         [Category("Editor"), DisplayName("Error Lens (inline diagnostics)"), Description("Show severity-colored diagnostic messages after the end of the line with a line tint in every editor (Kotlin, Java and other languages), plus Gradle squiggles in Kotlin files. Colors: Fonts and Colors > Error Lens. Reopen editors after changing this setting.")]

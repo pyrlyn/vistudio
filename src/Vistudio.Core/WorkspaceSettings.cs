@@ -40,7 +40,7 @@ namespace Vistudio.Core
     /// <remarks>
     /// Keys are <c>vistudio.kotlin.&lt;property&gt;</c>, <c>vistudio.java.&lt;property&gt;</c> (the <c>Java*</c> properties of
     /// <see cref="KotlinSettings"/>) and <c>vistudio.&lt;language&gt;.&lt;property&gt;</c> for each <see cref="StoredSettings"/> section
-    /// (zig, dart, rust, wasm), written flat or as nested objects. Property names
+    /// (zig, dart, rust, wasm, bazel), written flat or as nested objects. Property names
     /// are the settings property names in any case. Precedence: global &lt; <c>.kotlinproj</c> &lt; <c>.vs\settings.json</c>.
     /// </remarks>
     public static class WorkspaceSettings
@@ -52,9 +52,10 @@ namespace Vistudio.Core
         public const string DartPrefix = "vistudio.dart.";
         public const string RustPrefix = "vistudio.rust.";
         public const string WasmPrefix = "vistudio.wasm.";
+        public const string BazelPrefix = "vistudio.bazel.";
 
         // Every section a workspace file may contain; other vistudio.* keys are reported as unknown.
-        private static readonly string[] KnownPrefixes = { KotlinPrefix, JavaPrefix, ZigPrefix, DartPrefix, RustPrefix, WasmPrefix };
+        private static readonly string[] KnownPrefixes = { KotlinPrefix, JavaPrefix, ZigPrefix, DartPrefix, RustPrefix, WasmPrefix, BazelPrefix };
 
         // Path settings: variables expanded, relative values resolved against the workspace root.
         private static readonly HashSet<string> RootedPaths = new HashSet<string>(StringComparer.Ordinal)
@@ -65,6 +66,7 @@ namespace Vistudio.Core
             "DartSettings.FlutterSdkPath", "DartSettings.DartSdkPath",
             "RustSettings.LanguageServerPath",
             "WasmSettings.LanguageServerPath", "WasmSettings.WasmtimePath", "WasmSettings.WasmToolsPath",
+            "BazelSettings.LanguageServerPath", "BazelSettings.BuildifierPath", "BazelSettings.DiskCachePath",
         };
         // GradleRoot is already relative to the workspace (KotlinEnvironment.ResolveGradleRoot): variables only.
         private static readonly HashSet<string> ExpandedPaths = new HashSet<string>(StringComparer.Ordinal) { "KotlinSettings.GradleRoot" };
@@ -222,7 +224,7 @@ namespace Vistudio.Core
         {
             var warnings = new List<string>(Read(root).Warnings);
             warnings.AddRange(ApplyTo(new KotlinSettings(), root));
-            foreach (var settings in new StoredSettings[] { new ZigSettings(), new DartSettings(), new RustSettings(), new WasmSettings() })
+            foreach (var settings in new StoredSettings[] { new ZigSettings(), new DartSettings(), new RustSettings(), new WasmSettings(), new Bazel.BazelSettings() })
                 warnings.AddRange(ApplyTo(settings, root));
             return warnings;
         }

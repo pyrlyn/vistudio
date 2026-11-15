@@ -4,9 +4,11 @@
       <DrawingImage.Drawing>
         <DrawingGroup>
           <GeometryDrawing Brush="Transparent" Geometry="M0,0 H16 V16 H0 Z" />
-          <GeometryDrawing Brush="#0175C2" Geometry="M2,9 L9,2 H14 V7 L7,14 Z" />
-          <GeometryDrawing Brush="#40C4FF" Geometry="M9,2 H14 V7 Z" />
-          <GeometryDrawing Brush="#01579B" Geometry="M2,9 L7,14 V9 Z" />
+          <!-- Dart: a diamond body with a light upper-right cap and a dark lower-left cap. -->
+          <GeometryDrawing Brush="#0175C2" Geometry="M1.5,8.5 L8.5,1.5 L14.5,7.5 L7.5,14.5 Z" />
+          <GeometryDrawing Brush="#40C4FF" Geometry="M8.5,1.5 H12.6 L14.5,3.4 V7.5 Z" />
+          <GeometryDrawing Brush="#01579B" Geometry="M1.5,8.5 L7.5,14.5 H3.4 L1.5,12.6 Z" />
+          <GeometryDrawing Brush="#29B6F6" Geometry="M5,5 L8.5,1.5 L10.2,3.2 L6.7,6.7 Z" />
         </DrawingGroup>
       </DrawingImage.Drawing>
     </DrawingImage>

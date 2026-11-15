@@ -12,9 +12,42 @@ namespace Vistudio.Core.Languages
     public static class LanguageProjectDefaults
     {
         /// <param name="name">The built program's name, without .exe.</param>
-        public static IReadOnlyDictionary<string, string> For(LanguageInfo language, string folder, string name)
+        /// <param name="system">The build system; null picks Bazel when <paramref name="folder"/> is a Bazel workspace root.</param>
+        public static IReadOnlyDictionary<string, string> For(LanguageInfo language, string folder, string name, LanguageBuildSystem? system = null)
         {
             var exe = name + ".exe";
+            if ((system ?? Detect(folder)) == LanguageBuildSystem.Bazel)
+            {
+                // Bazel names programs after the target; the project's name is the root package's target by default.
+                // Native programs (PDBs on Windows) debug in the native engine from bazel-bin.
+                var native = language.Id == "rust" || language.Id == "zig" || language.Id == "c" || language.Id == "cpp";
+                var bazel = Settings("bazel build //...", "bazel run //:" + name, "bazel test //...", "bazel clean", native ? @"bazel-bin\" + exe : "");
+                return With(bazel, LanguageBuildSystem.Bazel);
+            }
+            return With(Native(language, folder, exe), LanguageBuildSystem.Native);
+        }
+
+        /// <summary>Bazel when the folder holds MODULE.bazel, REPO.bazel or WORKSPACE(.bazel); otherwise the language's own tool.</summary>
+        public static LanguageBuildSystem Detect(string folder) =>
+            BazelWorkspaceRoot(folder) ? LanguageBuildSystem.Bazel : LanguageBuildSystem.Native;
+
+        private static bool BazelWorkspaceRoot(string folder)
+        {
+            try { return Directory.Exists(folder) && Bazel.BazelWorkspace.IsWorkspaceRoot(folder); }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException) { return false; }
+        }
+
+        private static IReadOnlyDictionary<string, string> With(IReadOnlyDictionary<string, string> settings, LanguageBuildSystem system)
+        {
+            var result = settings.ToDictionary(p => p.Key, p => p.Value);
+            result["BuildSystem"] = system.ToString();
+            result["BuildCache"] = "true";
+            result["RemoteCache"] = "";
+            return result;
+        }
+
+        private static IReadOnlyDictionary<string, string> Native(LanguageInfo language, string folder, string exe)
+        {
             switch (language.Id)
             {
                 case "rust":
@@ -42,6 +75,13 @@ namespace Vistudio.Core.Languages
                 default:
                     throw new ArgumentException("No language project defaults for " + language.DisplayName + ".");
             }
+        }
+
+        /// <summary>Where bazelisk/bazel usually land when installed with Go or by hand.</summary>
+        public static IEnumerable<string> BazelInstallFolders()
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return new[] { Path.Combine(home, "go", "bin"), Path.Combine(home, "bin") };
         }
 
         /// <summary>Where each language's installer puts its tools when PATH was not updated for Visual Studio yet.</summary>

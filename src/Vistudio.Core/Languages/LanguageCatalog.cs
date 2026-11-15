@@ -73,4 +73,35 @@ namespace Vistudio.Core.Languages
 
         public static LanguageInfo? ById(string id) => All.FirstOrDefault(l => string.Equals(l.Id, id, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>Icons of <c>Icons/Languages.imagemanifest</c> beyond the one per language.</summary>
+    public static class LanguageIcons
+    {
+        /// <summary>A .dartproj whose pubspec depends on the Flutter SDK.</summary>
+        public const int FlutterProject = 10;
+        /// <summary>BUILD, BUILD.bazel, MODULE.bazel, WORKSPACE, .bzl and other Starlark files.</summary>
+        public const int BazelFile = 11;
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime Time, bool Flutter)> flutter =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime, bool)>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The project node's icon: Flutter for Flutter apps and packages, otherwise the language's.</summary>
+        public static int ForProject(LanguageProjectFile project) =>
+            project.Language == LanguageCatalog.Dart && IsFlutter(project.DirectoryPath) ? FlutterProject : project.Language.IconId;
+
+        /// <summary>The icon of a file Visual Studio cannot map by extension; 0 for none.</summary>
+        public static int ForFileName(string? path) => Bazel.BazelWorkspace.IsStarlarkFile(path) ? BazelFile : 0;
+
+        private static bool IsFlutter(string folder)
+        {
+            var pubspec = Path.Combine(folder, "pubspec.yaml");
+            DateTime time;
+            try { time = File.Exists(pubspec) ? File.GetLastWriteTimeUtc(pubspec) : DateTime.MinValue; }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException) { return false; }
+            if (flutter.TryGetValue(folder, out var cached) && cached.Time == time) return cached.Flutter;
+            var value = time != DateTime.MinValue && LanguageProjectDefaults.IsFlutter(folder);
+            flutter[folder] = (time, value);
+            return value;
+        }
+    }
 }

@@ -28,5 +28,11 @@
     <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="9">
       <Source Uri="/Vistudio.Vsix;Component/Icons/CppProject.xaml" />
     </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="10">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/FlutterProject.xaml" />
+    </Image>
+    <Image Guid="{2d0f6a15-591d-4131-b160-d834f3945b8f}" ID="11">
+      <Source Uri="/Vistudio.Vsix;Component/Icons/BazelFile.xaml" />
+    </Image>
   </Images>
 </ImageManifest>

@@ -153,6 +153,15 @@ internal static class Program
                     + (live.Count == 0 ? "" : "; live: " + string.Join(", ", live)) + ").");
                 return failures.Count == 0 ? 0 : 1;
             }
+            if (args.Length == 1 && args[0] == "--bazel")
+            {
+                // Bazel files, the Bazel build system and build caches; no Bazel, buildifier or sccache is needed.
+                var failures = new System.Collections.Generic.List<string>();
+                BazelTests.Run(Path.Combine(root, "bazel"), (condition, message) => { assertions++; if (!condition) failures.Add(message); });
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Bazel, build cache).");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--codelens")
             {
                 // Reports every failing CodeLens check, not only the first one.
@@ -176,6 +185,7 @@ internal static class Program
             ZigTests.Run(root, Check);
             DartTests.Run(root, Check);
             MiseTests.Run(root, Check);
+            BazelTests.Run(Path.Combine(root, "bazel"), Check);
             await ProjectFileTests.RunAsync(root, Check);
             ProjectTreeTests.Run(root, Check);
             KotlinTargetTests.Run(root, Check);

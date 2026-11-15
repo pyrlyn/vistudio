@@ -17,6 +17,8 @@ namespace Vistudio.Core
         public string BuildTasks { get; set; } = "build";
         public string TestTasks { get; set; } = "test";
         public string RunTasks { get; set; } = "run";
+        /// <summary>Gradle build cache (--build-cache) for Build, Test and Run tasks; gradle.properties org.gradle.caching wins.</summary>
+        public bool GradleBuildCache { get; set; } = true;
         public bool RainbowBraces { get; set; } = true;
         public bool EditorDiagnostics { get; set; } = true;
         /// <summary>Vertical scroll bar mode in Kotlin and Java editors. Inherit keeps the Visual Studio setting.</summary>

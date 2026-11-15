@@ -1,0 +1,16 @@
+<Image xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="16" Height="16">
+  <Image.Source>
+    <DrawingImage>
+      <DrawingImage.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="Transparent" Geometry="M0,0 H16 V16 H0 Z" />
+          <!-- Flutter project: two stacked chevron bars over a dark base facet. -->
+          <GeometryDrawing Brush="#54C5F8" Geometry="M2,8 L9,1 H13.5 L4.25,10.25 Z" />
+          <GeometryDrawing Brush="#54C5F8" Geometry="M6.6,12.6 L11.2,8 H13.5 L8.9,12.6 Z" />
+          <GeometryDrawing Brush="#01579B" Geometry="M6.6,12.6 L8.9,14.9 H13.5 L8.9,10.3 Z" />
+          <GeometryDrawing Brush="#29B6F6" Geometry="M4.3,10.3 L6.6,8 L8.9,10.3 L6.6,12.6 Z" />
+        </DrawingGroup>
+      </DrawingImage.Drawing>
+    </DrawingImage>
+  </Image.Source>
+</Image>

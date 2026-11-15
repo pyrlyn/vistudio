@@ -20,9 +20,17 @@ try {
     $manifest = [xml](Read-Entry 'extension.vsixmanifest')
     if ('KotlinFiles.pkgdef' -notin $manifest.PackageManifest.Assets.Asset.Path) { throw 'File registrations are not installed by the VSIX manifest.' }
     # The image service limits discovery depth; manifests must ship at the extension root.
+    # Images used only from code (Core LanguageIcons): 10 = Flutter project node.
+    $codeOnly = '2d0f6a15-591d-4131-b160-d834f3945b8f:10'
     $manifests = @(@{ Images = [xml](Read-Entry 'Kotlin.imagemanifest'); Registration = $registration },
-        @{ Images = [xml](Read-Entry 'Languages.imagemanifest'); Registration = (Read-Entry 'LanguageFiles.pkgdef') })
-    if ('LanguageFiles.pkgdef' -notin $manifest.PackageManifest.Assets.Asset.Path) { throw 'Language file icons are not installed by the VSIX manifest.' }
+        @{ Images = [xml](Read-Entry 'Languages.imagemanifest'); Registration = (Read-Entry 'LanguageFiles.pkgdef') + (Read-Entry 'BazelFiles.pkgdef') + $codeOnly })
+    foreach ($asset in @('LanguageFiles.pkgdef', 'BazelFiles.pkgdef')) {
+        if ($asset -notin $manifest.PackageManifest.Assets.Asset.Path) { throw "$asset is not installed by the VSIX manifest." }
+    }
+    # Bazel files: the Starlark grammar claims the Bazel file types and the editor opens them.
+    $starlark = (Read-Entry 'Grammars/Starlark.tmLanguage.json') | ConvertFrom-Json
+    foreach ($type in @('bzl', 'bazel', 'BUILD', 'WORKSPACE')) { if ($type -notin $starlark.fileTypes) { throw "The Starlark grammar does not claim $type." } }
+    if (-not (Read-Entry 'BazelFiles.pkgdef').Contains('"bzl"=dword:00000064')) { throw 'Missing default editor association for bzl' }
     # Visual Studio ships no .properties grammar; ours must sit in the registered TextMate repository and parse.
     $grammar = (Read-Entry 'Grammars/Properties.tmLanguage.json') | ConvertFrom-Json
     if ('properties' -notin $grammar.fileTypes) { throw 'The .properties grammar does not claim the properties extension.' }

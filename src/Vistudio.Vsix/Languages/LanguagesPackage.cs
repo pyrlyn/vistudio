@@ -29,6 +29,7 @@ namespace Vistudio.Languages
     [ProvideObject(typeof(ProjectPropertyPage), RegisterUsing = RegistrationMethod.CodeBase)]
     [ProvideOptionPage(typeof(Rust.RustOptionsPage), "Rust", "General", 0, 0, true)]
     [ProvideOptionPage(typeof(Wasm.WasmOptionsPage), "WebAssembly", "General", 0, 0, true)]
+    [ProvideOptionPage(typeof(Bazel.BazelOptionsPage), "Bazel", "General", 0, 0, true)]
     [ProvideProjectFactory(typeof(LanguageProjectFactory), "Vistudio Languages",
         "Vistudio Language Projects (*.rustproj;*.zigproj;*.dartproj;*.cproj;*.cppproj;*.wasmproj;*.javaproj);*.rustproj;*.zigproj;*.dartproj;*.cproj;*.cppproj;*.wasmproj;*.javaproj",
         "rustproj", "rustproj;zigproj;dartproj;cproj;cppproj;wasmproj;javaproj", null, LanguageVsTemplate = "VistudioLanguages")]
@@ -136,8 +137,8 @@ namespace Vistudio.Languages
         internal async Task<bool> RunCommandsAsync(LanguageProjectFile project, string operation, Action<string> mirror, CancellationToken token,
             Action<string>? problem = null)
         {
-            IReadOnlyList<System.Diagnostics.ProcessStartInfo> commands;
-            try { commands = await Task.Run(() => project.Commands(operation), token); }
+            IReadOnlyList<(System.Diagnostics.ProcessStartInfo Start, string? CacheNote)> commands;
+            try { commands = await Task.Run(() => project.CommandsWithNotes(operation), token); }
             catch (Exception e) when (e is System.IO.FileNotFoundException || e is ArgumentException)
             {
                 mirror(project.Name + ": " + e.Message);
@@ -150,8 +151,9 @@ namespace Vistudio.Languages
                 if (operation != "clean") problem?.Invoke("No " + operation + " command is set in the project properties.");
                 return operation == "clean";
             }
-            foreach (var command in commands)
+            foreach (var (command, cacheNote) in commands)
             {
+                if (cacheNote != null) mirror(cacheNote);
                 mirror("> " + System.IO.Path.GetFileName(command.FileName) + " " + command.Arguments);
                 var exit = await OwnedProcess.RunAsync(command, mirror, token).ConfigureAwait(false);
                 if (exit != 0) { mirror(project.Name + ": exited with code " + exit + "."); return false; }

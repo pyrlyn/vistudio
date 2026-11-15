@@ -27,6 +27,7 @@
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="File" Path="DartDebugAdapter.pkgdef" />
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="File" Path="LanguageFiles.pkgdef" />
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="File" Path="RustWasmFiles.pkgdef" />
+    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="File" Path="BazelFiles.pkgdef" />
     <Asset Type="Microsoft.VisualStudio.ProjectTemplate" d:Source="File" Path="ProjectTemplates" d:TargetPath="ProjectTemplates" />
   </Assets>
 </PackageManifest>

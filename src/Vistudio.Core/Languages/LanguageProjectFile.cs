@@ -28,7 +28,11 @@ namespace Vistudio.Core.Languages
         public static readonly string[] EditableProperties =
         {
             "BuildCommand", "RunCommand", "TestCommand", "CleanCommand", "DebugProgram", "DebugArguments", "WorkingDirectory", "ToolFolders", "PackageTool",
+            "BuildSystem", "BuildCache", "RemoteCache",
         };
+
+        /// <summary>Settings a build system switch replaces when they still hold the previous system's defaults.</summary>
+        private static readonly string[] BuildSystemDefaults = { "BuildCommand", "RunCommand", "TestCommand", "CleanCommand", "DebugProgram" };
 
         private readonly XDocument document;
 
@@ -116,11 +120,63 @@ namespace Vistudio.Core.Languages
                     if (value.Split(';').Any(f => f.Trim().IndexOfAny(Path.GetInvalidPathChars()) >= 0))
                         throw new ArgumentException("Tool folders must be paths separated by ';'.");
                     break;
+                case "BuildSystem":
+                    if (!Enum.TryParse<LanguageBuildSystem>(value.Length == 0 ? "Native" : value, true, out var system) || !Enum.IsDefined(typeof(LanguageBuildSystem), system))
+                        throw new ArgumentException("Build system must be Native or Bazel.");
+                    value = system.ToString();
+                    SwitchBuildSystem(system);
+                    break;
+                case "BuildCache":
+                    if (value.Length == 0) value = "true";
+                    if (!bool.TryParse(value, out var cache)) throw new ArgumentException("Build cache must be true or false.");
+                    value = cache ? "true" : "false";
+                    break;
+                case "RemoteCache":
+                    if (value.Length != 0 && (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                        || !new[] { "http", "https", "grpc", "grpcs" }.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)))
+                        throw new ArgumentException("Remote cache must be an http, https, grpc or grpcs URL.");
+                    break;
             }
             var element = Properties.Element(name);
             if (element == null) Properties.Add(element = new XElement(name));
             element.Value = value;
             Save(token);
+        }
+
+        /// <summary>Native (the language's own tool) or Bazel; files without the setting are Native.</summary>
+        public LanguageBuildSystem BuildSystem =>
+            string.Equals(Get("BuildSystem"), "Bazel", StringComparison.OrdinalIgnoreCase) ? LanguageBuildSystem.Bazel : LanguageBuildSystem.Native;
+
+        /// <summary>The tool-native build cache (<see cref="BuildCache"/>); on unless the file says false.</summary>
+        public bool BuildCacheEnabled => !string.Equals(Get("BuildCache"), "false", StringComparison.OrdinalIgnoreCase);
+
+        public string RemoteCache => Get("RemoteCache");
+
+        /// <summary>
+        /// Replaces the command settings that still hold the current build system's defaults with the new system's
+        /// defaults; settings the user changed stay as they are.
+        /// </summary>
+        private void SwitchBuildSystem(LanguageBuildSystem system)
+        {
+            var current = BuildSystem;
+            if (current == system) return;
+            var before = LanguageProjectDefaults.For(Language, DirectoryPath, ProgramName(current), current);
+            var after = LanguageProjectDefaults.For(Language, DirectoryPath, ProgramName(current), system);
+            foreach (var name in BuildSystemDefaults)
+            {
+                var value = Get(name);
+                if (value != (before.TryGetValue(name, out var old) ? old : "")) continue;
+                var element = Properties.Element(name);
+                if (element == null) Properties.Add(element = new XElement(name));
+                element.Value = after.TryGetValue(name, out var replacement) ? replacement : "";
+            }
+        }
+
+        /// <summary>The program name the defaults were written with: the debug program's file name, else the project name.</summary>
+        private string ProgramName(LanguageBuildSystem system)
+        {
+            var program = Get("DebugProgram");
+            return program.Length != 0 ? Path.GetFileNameWithoutExtension(program) : Name;
         }
 
         public void Save(CancellationToken token = default)
@@ -175,7 +231,16 @@ namespace Vistudio.Core.Languages
         }
 
         /// <summary>The commands of <paramref name="operation"/> (build, rebuild, run, test, clean) ready to start in order.</summary>
-        public IReadOnlyList<ProcessStartInfo> Commands(string operation)
+        public IReadOnlyList<ProcessStartInfo> Commands(string operation) => CommandsWithNotes(operation).Select(c => c.Start).ToList();
+
+        /// <summary><see cref="Commands"/> with what the build cache did for each (for the output pane).</summary>
+        public IReadOnlyList<(ProcessStartInfo Start, string? CacheNote)> CommandsWithNotes(string operation)
+        {
+            if (operation == "rebuild") return CommandsWithNotes("clean").Concat(CommandsWithNotes("build")).ToList();
+            return CommandLines(operation).Select(c => (c.ToStartInfo(this), c.CacheNote)).ToList();
+        }
+
+        private IReadOnlyList<LanguageCommand> CommandLines(string operation)
         {
             string text;
             switch (operation)
@@ -184,11 +249,9 @@ namespace Vistudio.Core.Languages
                 case "run": text = Get("RunCommand"); break;
                 case "test": text = Get("TestCommand"); break;
                 case "clean": text = Get("CleanCommand"); break;
-                case "rebuild":
-                    return Commands("clean").Concat(Commands("build")).ToList();
                 default: throw new ArgumentException("Unknown operation: " + operation);
             }
-            return LanguageCommandLine.Parse(text).Select(c => c.ToStartInfo(this)).ToList();
+            return LanguageCommandLine.Parse(text);
         }
 
         /// <summary>The program F5 starts under the native debugger; null when the project sets none.</summary>
@@ -204,7 +267,18 @@ namespace Vistudio.Core.Languages
         public IReadOnlyList<string> DebugArguments => ZigArguments.Split(Get("DebugArguments"), "Debug arguments");
 
         /// <summary>Folders searched for programs: the project folder, <see cref="ToolFolders"/>, then the language's usual install folders.</summary>
-        public IEnumerable<string> SearchFolders => new[] { DirectoryPath }.Concat(ToolFolders).Concat(LanguageProjectDefaults.InstallFolders(Language));
+        public IEnumerable<string> SearchFolders => new[] { DirectoryPath }.Concat(ToolFolders).Concat(LanguageProjectDefaults.InstallFolders(Language))
+            .Concat(BuildSystem == LanguageBuildSystem.Bazel ? LanguageProjectDefaults.BazelInstallFolders() : Enumerable.Empty<string>());
+
+        /// <summary>The project's cache options for <see cref="BuildCache.Apply"/>.</summary>
+        public BuildCacheOptions CacheOptions() => new BuildCacheOptions
+        {
+            Enabled = BuildCacheEnabled,
+            RemoteCache = RemoteCache,
+            WorkingDirectory = WorkingDirectory,
+            BazelDiskCache = Bazel.BazelSettings.Load().EffectiveDiskCache,
+            FindTool = name => ToolLocator.Find(new[] { name }, SearchFolders.Where(Directory.Exists)),
+        };
     }
 
     /// <summary>One program and its arguments from a command setting.</summary>
@@ -232,9 +306,12 @@ namespace Vistudio.Core.Languages
                 "'" + Program + "' was not found in the project folder, its tool folders or PATH. Install it or set Tool folders in the project properties.");
             var directory = project.WorkingDirectory;
             var extension = Path.GetExtension(executable);
+            var cache = BuildCache.Apply(executable, Arguments, project.CacheOptions());
+            CacheNote = cache.Note;
             var start = extension.Equals(".bat", StringComparison.OrdinalIgnoreCase) || extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
-                ? ProcessCommands.CreateRedirected(Path.Combine(Environment.SystemDirectory, "cmd.exe"), DartArguments.BatchCommandLine(executable, Arguments), directory)
-                : ProcessCommands.CreateRedirected(executable, ZigArguments.Join(Arguments), directory);
+                ? ProcessCommands.CreateRedirected(Path.Combine(Environment.SystemDirectory, "cmd.exe"), DartArguments.BatchCommandLine(executable, cache.Arguments), directory)
+                : ProcessCommands.CreateRedirected(executable, ZigArguments.Join(cache.Arguments), directory);
+            foreach (var variable in cache.Environment) start.EnvironmentVariables[variable.Key] = variable.Value;
             // Tools start tools (Conan runs CMake to build packages): they find the same programs first.
             var folders = project.SearchFolders.Where(Directory.Exists).ToList();
             if (folders.Count != 0) start.EnvironmentVariables["PATH"] = string.Join(";", folders) + ";" + start.EnvironmentVariables["PATH"];
@@ -249,8 +326,13 @@ namespace Vistudio.Core.Languages
                 var relative = project.ResolvePath(Program);
                 return File.Exists(relative) ? relative : ToolLocator.Find(new[] { relative });
             }
-            return ToolLocator.Find(new[] { Program }, project.SearchFolders);
+            // bazelisk is the usual way to get Bazel and picks the version .bazelversion asks for.
+            var names = BuildCache.Tool(Program) == "bazel" && Program.Equals("bazel", StringComparison.OrdinalIgnoreCase) ? new[] { "bazel", "bazelisk" } : new[] { Program };
+            return ToolLocator.Find(names, project.SearchFolders);
         }
+
+        /// <summary>What the build cache did for the last <see cref="ToStartInfo"/>; null when the tool has no cache to add.</summary>
+        public string? CacheNote { get; private set; }
     }
 
     /// <summary>

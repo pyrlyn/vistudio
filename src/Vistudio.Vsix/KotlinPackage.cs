@@ -432,7 +432,7 @@ namespace Vistudio
                         finally { owner.ReleaseHandle(); }
                     }
                 }
-                var start = GradleCommand.Create(gradleRoot, settings.GradleJavaHome, tasks);
+                var start = GradleCommand.Create(gradleRoot, settings.GradleJavaHome, tasks, settings.GradleBuildCache);
                 Log("Gradle " + string.Join(" ", tasks) + " in " + start.WorkingDirectory);
                 token.ThrowIfCancellationRequested();
                 await JoinableTaskFactory.SwitchToMainThreadAsync(token);

@@ -1,0 +1,19 @@
+<Image xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="16" Height="16">
+  <Image.Source>
+    <DrawingImage>
+      <DrawingImage.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="Transparent" Geometry="M0,0 H16 V16 H0 Z" />
+          <!-- Bazel files: an isometric stack of green faces (BUILD, MODULE.bazel, WORKSPACE, .bzl). -->
+          <GeometryDrawing Brush="#76D275" Geometry="M4.5,1 L8,4.5 L4.5,8 L1,4.5 Z" />
+          <GeometryDrawing Brush="#76D275" Geometry="M11.5,1 L15,4.5 L11.5,8 L8,4.5 Z" />
+          <GeometryDrawing Brush="#43A047" Geometry="M1,4.5 L4.5,8 V11.5 L1,8 Z" />
+          <GeometryDrawing Brush="#43A047" Geometry="M8,4.5 L11.5,8 L8,11.5 L4.5,8 Z" />
+          <GeometryDrawing Brush="#2E7D32" Geometry="M15,4.5 V8 L11.5,11.5 V8 Z" />
+          <GeometryDrawing Brush="#1B5E20" Geometry="M4.5,11.5 V8 L8,11.5 V15 Z" />
+          <GeometryDrawing Brush="#2E7D32" Geometry="M11.5,8 V11.5 L8,15 V11.5 Z" />
+        </DrawingGroup>
+      </DrawingImage.Drawing>
+    </DrawingImage>
+  </Image.Source>
+</Image>

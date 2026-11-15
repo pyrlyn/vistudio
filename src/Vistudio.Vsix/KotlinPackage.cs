@@ -60,6 +60,7 @@ namespace Vistudio
             public bool SolutionBuild { get; }
             /// <summary>Explicit Gradle tasks (a Kotlin target's build/test/run tasks) instead of the project settings.</summary>
             public System.Collections.Generic.IReadOnlyList<string>? Tasks { get; set; }
+            public Action<int>? Started { get; set; }
         }
 
         /// <summary>Runs tasks declared in a Kotlin build script (CodeLens "Run task") in that script's Gradle build through the shared gate.</summary>
@@ -67,11 +68,12 @@ namespace Vistudio
             BeginBuildAsync("tasks", default, new ProjectBuildRequest(null, null, solutionBuild: false) { Tasks = tasks, GradleRoot = gradleRoot });
 
         /// <summary>Runs a Kotlin target's imported build, test or run tasks for one loaded .kotlinproj through the shared Gradle gate.</summary>
-        internal Task<bool> RunTargetAsync(string projectFile, KotlinTarget target, string operation)
+        /// <param name="started">Gets the Gradle process id once it runs (Vistudio Diagnostics watches the program it starts).</param>
+        internal Task<bool> RunTargetAsync(string projectFile, KotlinTarget target, string operation, Action<int>? started = null)
         {
             var tasks = target.Tasks(operation);
             if (tasks.Count == 0) throw new InvalidOperationException("Kotlin target " + target.Id + " has no Gradle " + operation + " task. Import the Gradle model again or use Gradle Tasks...");
-            return BeginBuildAsync(operation, default, new ProjectBuildRequest(projectFile, null, solutionBuild: false) { Tasks = tasks });
+            return BeginBuildAsync(operation, default, new ProjectBuildRequest(projectFile, null, solutionBuild: false) { Tasks = tasks, Started = started });
         }
 
         /// <summary>The selected Targets/&lt;target&gt; node of a Kotlin project, if exactly one is selected.</summary>
@@ -439,11 +441,12 @@ namespace Vistudio
                 buildErrors!.Clear();
                 var diagnostics = new BuildDiagnostics(start.WorkingDirectory);
                 var buildStartedUtc = DateTime.UtcNow;
-                var code = await OwnedProcess.RunAsync(start, line =>
+                Action<string> accept = line =>
                 {
                     Log(line);
                     diagnostics.Accept(line);
-                }, token).ConfigureAwait(false);
+                };
+                var code = await OwnedProcess.RunAsync(start, accept, accept, token, request?.Started).ConfigureAwait(false);
                 Log(code == 0 ? "Gradle tasks succeeded." : "Gradle tasks FAILED (exit " + code + "). See output above.");
                 await JoinableTaskFactory.SwitchToMainThreadAsync(token);
                 token.ThrowIfCancellationRequested();

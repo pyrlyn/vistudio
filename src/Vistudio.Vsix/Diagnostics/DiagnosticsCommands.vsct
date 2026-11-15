@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vistudio Diagnostics (DiagnosticsPackage, T71). Own menu resource so the other command tables are untouched. -->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" /><Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+  <Commands package="guidDiagnosticsPackage">
+    <Buttons>
+      <Button guid="guidDiagnosticsCommands" id="ShowDiagnostics" priority="0x0300" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="ImageCatalogGuid" id="Performance" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Vistudio Diagnostics</ButtonText><ToolTipText>CPU, memory, runtime heap, events and snapshots of Kotlin, Java, Dart/Flutter and WebAssembly programs started with F5</ToolTipText><CommandName>Vistudio.Diagnostics</CommandName><CanonicalName>.View.VistudioDiagnostics</CanonicalName><LocCanonicalName>.View.VistudioDiagnostics</LocCanonicalName></Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidDiagnosticsPackage" value="{4b8d2f61-9c3e-4a7d-b5e2-1f6a8c0d3e94}" />
+    <GuidSymbol name="guidDiagnosticsCommands" value="{8e2a6c14-3f5b-4d9e-a1c7-5b0d2e4f6a83}">
+      <IDSymbol name="ShowDiagnostics" value="0x0100" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

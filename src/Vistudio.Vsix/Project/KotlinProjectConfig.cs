@@ -66,13 +66,14 @@ namespace Vistudio
                 KotlinLaunchTarget target;
                 try
                 {
-                    // Non-JVM Kotlin targets (JS, Wasm, Native): F5 explains that only JVM debugging exists; Ctrl+F5 runs the
-                    // target's Gradle run task. JVM targets and projects without targets continue to the JVM launch.
+                    // Non-JVM Kotlin targets (JS, Wasm, Native) have no debugger: F5 and Ctrl+F5 run the target's Gradle run
+                    // task, and F5 adds Vistudio Diagnostics on the program it starts (creator decision, T71). JVM targets
+                    // and projects without targets continue to the JVM launch.
                     var kotlinTarget = await Task.Run(() => KotlinTarget.ForLaunch(KotlinProjectFile.Load(project.FilePath)));
                     if (kotlinTarget != null && !kotlinTarget.IsJvm)
                     {
                         await package.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        if (!noDebug || kotlinTarget.RunTasks.Count == 0)
+                        if (kotlinTarget.RunTasks.Count == 0)
                         {
                             var message = noDebug ? "Kotlin target " + kotlinTarget.Id + " has no Gradle run task. Import the Gradle model again or choose another startup target."
                                 : KotlinTarget.DebuggingNotSupported(kotlinTarget);
@@ -81,10 +82,18 @@ namespace Vistudio
                                 OLEMSGBUTTON.OLEMSGBUTTON_OK, OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                             return;
                         }
-                        package.Environment.Log("Kotlin run target: " + kotlinTarget.Id + " (" + kotlinTarget.Description + ") with Gradle " + string.Join(" ", kotlinTarget.RunTasks));
-                        try { await package.RunTargetAsync(project.FilePath, kotlinTarget, "run"); }
+                        package.Environment.Log("Kotlin run target: " + kotlinTarget.Id + " (" + kotlinTarget.Description + ") with Gradle " + string.Join(" ", kotlinTarget.RunTasks) +
+                            (noDebug ? "" : ". The " + kotlinTarget.Description + " target has no debugger; it runs without debugging and Vistudio Diagnostics shows its CPU and memory."));
+                        var title = project.Name + " " + kotlinTarget.Id + " (" + kotlinTarget.Description + ")";
+                        Action<int>? started = noDebug ? null : (Action<int>)(gradle => Diagnostics.DiagnosticsSessions.WatchProgramUnderGradle(gradle, title));
+                        try
+                        {
+                            var ok = await package.RunTargetAsync(project.FilePath, kotlinTarget, "run", started);
+                            if (!noDebug) Diagnostics.DiagnosticsSessions.EndRun(ok ? "The Gradle run finished." : "The Gradle run failed.");
+                        }
                         catch (InvalidOperationException e)
                         {
+                            if (!noDebug) Diagnostics.DiagnosticsSessions.EndRun("The Gradle run could not start.");
                             package.Environment.Log("Kotlin: " + e.Message);
                             await package.Environment.ShowOutputAsync();
                         }

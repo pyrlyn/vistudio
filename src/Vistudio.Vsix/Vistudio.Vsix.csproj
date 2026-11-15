@@ -44,6 +44,8 @@
     <VSCTCompile Include="Mise/MiseCommands.vsct" ResourceName="MiseMenus.ctmenu" />
     <!-- Dart and Flutter commands: own menu resource for DartPackage. -->
     <VSCTCompile Include="Dart/DartCommands.vsct" ResourceName="DartMenus.ctmenu" />
+    <!-- Vistudio Diagnostics window command: own menu resource for DiagnosticsPackage (T71). -->
+    <VSCTCompile Include="Diagnostics/DiagnosticsCommands.vsct" ResourceName="DiagnosticsMenus.ctmenu" />
     <Content Include="Grammars/Dart.tmLanguage.json" IncludeInVSIX="true" />
     <Content Include="Registration/DartFiles.pkgdef" IncludeInVSIX="true"><Link>DartFiles.pkgdef</Link></Content>
     <Content Include="Registration/DartDebugAdapter.pkgdef" IncludeInVSIX="true"><Link>DartDebugAdapter.pkgdef</Link></Content>

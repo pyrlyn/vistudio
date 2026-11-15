@@ -72,8 +72,10 @@ namespace Vistudio.Languages
                 if (program == null)
                 {
                     // No debugger exists for this language here yet (WebAssembly): run the Run command instead.
-                    if (!noDebug) Log("No debugger is configured for " + metadata.Language.DisplayName + " projects; running without debugging.");
-                    package.RunProjectCommand(metadata, "run");
+                    if (!noDebug) Log("No debugger is configured for " + metadata.Language.DisplayName + " projects; running without debugging. Vistudio Diagnostics shows its CPU and memory.");
+                    // Without a debug session Visual Studio's Diagnostic Tools has nothing to attach to (T71).
+                    package.RunProjectCommand(metadata, "run", noDebug ? null : (Action<int>)(pid =>
+                        Diagnostics.DiagnosticsSessions.WatchProcessTree(pid, metadata.Name + " (" + metadata.Language.DisplayName + ")")));
                     return VSConstants.S_OK;
                 }
                 if (!File.Exists(program))

@@ -135,7 +135,7 @@ Use **Tools > Kotlin > Gradle targets and tasks...** to discover the project's a
 
 See the [four-target sample and repeatable integration test](samples/kotlin-multiplatform/README.md). The tested runtime matrix is JVM, Windows Native (`mingwX64`), JS/Node and Wasm/Node. Other Native hosts and browser/device workflows require the corresponding toolchains and are not claimed tested. F5 debugging remains JVM-specific.
 
-In a `.kotlinproj`, the Gradle import records each Multiplatform target (platform, source sets, configurations and its real build/test/run tasks) and the project kind (JVM, JS, Wasm, Native or Multiplatform). Solution Explorer shows shared source sets, a **Targets** node with one node per target (its own source sets and dependencies, platform icon, **Build/Run/Test &lt;target&gt;** context commands), and the **Startup target** project property selects the target for Run with Gradle, F5 and Ctrl+F5. F5 on a JS, Wasm or Native target explains that only JVM debugging is available; Ctrl+F5 runs the target's Gradle run task. See [Kotlin targets](docs/project-file.md#kotlin-targets).
+In a `.kotlinproj`, the Gradle import records each Multiplatform target (platform, source sets, configurations and its real build/test/run tasks) and the project kind (JVM, JS, Wasm, Native or Multiplatform). Solution Explorer shows shared source sets, a **Targets** node with one node per target (its own source sets and dependencies, platform icon, **Build/Run/Test &lt;target&gt;** context commands), and the **Startup target** project property selects the target for Run with Gradle, F5 and Ctrl+F5. JS, Wasm and Native targets have no debugger: F5 and Ctrl+F5 run the target's Gradle run task, and F5 also opens Vistudio Diagnostics on the program it starts (see [CPU and memory while debugging](#cpu-and-memory-while-debugging)); a target without a run task gets a message. See [Kotlin targets](docs/project-file.md#kotlin-targets).
 
 ## Braces and diagnostics in the editor
 
@@ -282,6 +282,24 @@ The Kotlin server reads its hint options through `workspace/configuration` (sect
 Kotlin (`.kt`, `.kts`) and Java (`.java`) editors support Visual Studio's Sticky Scroll: while you scroll, the headers of the enclosing scopes (class, function, accessor, `if`/`when`/`switch` branch, loop, `try`/`catch`, lambda) stay pinned at the top of the editor, and clicking one jumps to it. A header that spans lines starts at the declaration (`data class Box(` … `) : Base {`), not at the line with the brace, and leading annotations are left out. The same block structure draws the structure guide lines.
 
 The scopes come from a lexical scanner in the extension (`CodeStructureScanner`), so they work before the language server starts and in broken code. Folding stays with the language servers' folding ranges. Turn Sticky Scroll on or off and set its line count with **Tools > Options > Text Editor > General > Sticky Scroll**.
+
+## CPU and memory while debugging
+
+Visual Studio's **Diagnostic Tools** window (Debug > Windows > Show Diagnostic Tools) accepts only native and .NET debug engines; Visual Studio 18 checks that against a fixed list, with no extension point. What each language gets on F5:
+
+| Language | F5 session | CPU, memory, snapshots |
+| --- | --- | --- |
+| Rust, Zig, C, C++ | Native engine (`DebugProgram` of the project) | Visual Studio's Diagnostic Tools window |
+| Kotlin (JVM target), Java | Kotlin/JVM Debug Adapter Host engine | **Vistudio Diagnostics** window; heap and GC from `jstat`, snapshots from `jcmd GC.class_histogram` |
+| Dart, Flutter | Dart Debug Adapter Host engine | **Vistudio Diagnostics** window; heap and snapshots from the Dart VM service |
+| WebAssembly | No debugger: F5 runs the Run command | **Vistudio Diagnostics** window; the started process and its children |
+| Kotlin JS, Wasm, Native targets | No debugger: F5 runs the target's Gradle run task | **Vistudio Diagnostics** window; the program Gradle starts (Node.js, or the mingwX64 executable), without Gradle's own processes |
+
+The **Vistudio Diagnostics** window (View > Other Windows > Vistudio Diagnostics; it opens by itself, as a tab next to Diagnostic Tools, when such a session starts) samples the program once a second: CPU as a share of all processors, private bytes and working set, and the runtime's own heap line (used and capacity). Break periods are shaded in the charts. Events lists the start, debugger breaks and continues, garbage collections (JVM collection counts; a large drop of the Dart heap), snapshots and the end. **Take Snapshot** lists the heap by class and compares it with the previous snapshot (largest size change first); for WebAssembly a snapshot records process memory only. The data stays in the window after Stop Debugging.
+
+How the program is found: the Kotlin server starts the JVM through Gradle, so Vistudio waits (up to five minutes, for the first build) for a new JVM that `jps -l` lists with the launched main class; `jstat`/`jcmd` come from that JVM's own JDK, then the configured JDK, `JAVA_HOME` and PATH (a JRE has no `jstat`: only process counters are shown then). For Dart and Flutter the debug adapter's `dart.debuggerUris` event gives the VM service, whose `getVM` names the program's process (`dartvm.exe`, or the Flutter app). Both work while the program is stopped at a breakpoint.
+
+Checks: `Vistudio.Tests.exe --diagnostics` (unit checks; live checks against a JVM and a Dart VM when a JDK and a Dart SDK are found; `--diagnostics none` for unit checks only); `tests/verify-diagnostics.ps1` (Visual Studio through DTE and UI Automation). Results: [docs/diagnostics-validation.md](docs/diagnostics-validation.md).
 
 ## Runtime ETW events for the Performance Profiler
 

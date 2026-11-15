@@ -49,6 +49,7 @@ namespace Vistudio.Dart
             SupportsHotReload = hotReload;
             Root = root;
             connection = new DartDapConnection(start, ErrorLine);
+            connection.EventReceived += WatchVmService;
             connection.Exited += () =>
             {
                 DartDebugSessions.Remove(this);
@@ -61,6 +62,17 @@ namespace Vistudio.Dart
         /// <summary>Package root of the debugged program (hot reload on save only for files of this package).</summary>
         internal string Root { get; }
         internal bool AppStarted => connection.AppStarted;
+
+        /// <summary>
+        /// Visual Studio's Diagnostic Tools refuses Debug Adapter Host engines (T71); the VM service the adapter announces
+        /// gives Vistudio Diagnostics the program's process and heap instead.
+        /// </summary>
+        private void WatchVmService(JObject message)
+        {
+            if ((string?)message["event"] != "dart.debuggerUris" || !((string?)message["body"]?["vmServiceUri"] is string uri) || uri.Length == 0) return;
+            DartDebugSessions.Log?.Invoke("Dart VM service: " + uri);
+            Diagnostics.DiagnosticsSessions.WatchDartVm(uri, Path.GetFileName(Root.TrimEnd('\\', '/')));
+        }
 
         public IntPtr Handle => IntPtr.Zero;
         public Stream StandardInput => connection.HostInput;

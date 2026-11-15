@@ -414,7 +414,7 @@ internal static partial class DartTests
 
     private static int LineOf(string file, string text) => File.ReadAllLines(file).ToList().FindIndex(l => l.Contains(text)) + 1;
 
-    private static void CopySample(string name, string target)
+    internal static void CopySample(string name, string target)
     {
         var source = Path.GetDirectoryName(FindRepositoryFile(Path.Combine("samples", name, "pubspec.yaml")))!;
         foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
@@ -428,7 +428,7 @@ internal static partial class DartTests
     }
 
     /// <summary>A test-side DAP client playing the Visual Studio debugger: writes frames through <see cref="DartDapConnection.HostInput"/> in pieces and reads <see cref="DartDapConnection.HostOutput"/>.</summary>
-    private sealed class DapClient : IDisposable
+    internal sealed class DapClient : IDisposable
     {
         private readonly ConcurrentDictionary<int, TaskCompletionSource<JObject>> pending = new ConcurrentDictionary<int, TaskCompletionSource<JObject>>();
         private readonly List<JObject> events = new List<JObject>();

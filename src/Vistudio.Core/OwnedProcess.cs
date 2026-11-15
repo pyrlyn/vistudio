@@ -17,6 +17,7 @@ namespace Vistudio.Core
         public Stream Output => process.StandardOutput.BaseStream;
         public StreamReader Error => process.StandardError;
         public Task<int> Exit => exited.Task;
+        public int Id => process.Id;
 
         public OwnedProcess(ProcessStartInfo start)
         {
@@ -62,12 +63,14 @@ namespace Vistudio.Core
             RunAsync(start, onLine, onLine, token);
 
         /// <summary>Runs to completion with standard output and error kept apart (machine-readable output on one, progress on the other).</summary>
-        public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token)
+        /// <param name="started">Gets the process id once it runs (diagnostics watch the program a Run command starts).</param>
+        public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token, Action<int>? started = null)
         {
             token.ThrowIfCancellationRequested();
             using (var owned = new OwnedProcess(start))
             {
                 owned.process.StandardInput.Close();
+                started?.Invoke(owned.process.Id);
                 var stdout = PumpAsync(owned.process.StandardOutput, onOutput);
                 var stderr = PumpAsync(owned.process.StandardError, onError);
                 var canceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -134,8 +134,9 @@ namespace Vistudio.Languages
         /// <summary>Runs a project's commands for <paramref name="operation"/> in order, stopping at the first failure.</summary>
         /// <param name="problem">Receives the reason when the commands cannot start (a missing tool, no command set): the
         /// tool's own output says nothing then, so a build shows the reason in the Error List too.</param>
+        /// <param name="started">Gets the process id of the last command (the program itself) once it runs.</param>
         internal async Task<bool> RunCommandsAsync(LanguageProjectFile project, string operation, Action<string> mirror, CancellationToken token,
-            Action<string>? problem = null)
+            Action<string>? problem = null, Action<int>? started = null)
         {
             IReadOnlyList<(System.Diagnostics.ProcessStartInfo Start, string? CacheNote)> commands;
             try { commands = await Task.Run(() => project.CommandsWithNotes(operation), token); }
@@ -151,11 +152,12 @@ namespace Vistudio.Languages
                 if (operation != "clean") problem?.Invoke("No " + operation + " command is set in the project properties.");
                 return operation == "clean";
             }
-            foreach (var (command, cacheNote) in commands)
+            for (var i = 0; i < commands.Count; i++)
             {
+                var (command, cacheNote) = commands[i];
                 if (cacheNote != null) mirror(cacheNote);
                 mirror("> " + System.IO.Path.GetFileName(command.FileName) + " " + command.Arguments);
-                var exit = await OwnedProcess.RunAsync(command, mirror, token).ConfigureAwait(false);
+                var exit = await OwnedProcess.RunAsync(command, mirror, mirror, token, i == commands.Count - 1 ? started : null).ConfigureAwait(false);
                 if (exit != 0) { mirror(project.Name + ": exited with code " + exit + "."); return false; }
             }
             return true;
@@ -188,7 +190,7 @@ namespace Vistudio.Languages
         }
 
         /// <summary>Run / Run Tests from the project context menu, Ctrl+F5 without a debug program: output in the "Vistudio Projects" pane.</summary>
-        internal void RunProjectCommand(LanguageProjectFile project, string operation)
+        internal void RunProjectCommand(LanguageProjectFile project, string operation, Action<int>? started = null)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             if (running != null) { Log("Another run is in progress; cancel it first."); return; }
@@ -200,7 +202,7 @@ namespace Vistudio.Languages
                     await SaveAllAsync();
                     await output.ShowAsync();
                     Log("== " + project.Name + ": " + operation);
-                    var ok = await RunCommandsAsync(project, operation, Log, cancellation.Token);
+                    var ok = await RunCommandsAsync(project, operation, Log, cancellation.Token, started: started);
                     Log(ok ? "Done." : "Failed.");
                 }
                 catch (OperationCanceledException) { Log("Canceled."); }

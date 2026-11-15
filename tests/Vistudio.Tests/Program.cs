@@ -153,6 +153,21 @@ internal static class Program
                     + (live.Count == 0 ? "" : "; live: " + string.Join(", ", live)) + ").");
                 return failures.Count == 0 ? 0 : 1;
             }
+            if (args.Length >= 1 && args[0] == "--diagnostics")
+            {
+                // CPU/memory sampling and runtime heap probes (T71); the live part runs a JVM and a Dart VM when a JDK and a
+                // Dart SDK are found. "--diagnostics none" runs the unit checks only; "--diagnostics flutter" adds a Flutter
+                // Windows app debug session (a full Windows build); "--diagnostics kotlin-targets" runs the JS, wasmJs and mingwX64
+                // targets of samples/kotlin-multiplatform under the program-under-Gradle monitor (F5 on those targets).
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
+                DiagnosticsTests.Run(collect);
+                var stage = args.Length > 1 ? args[1] : "all";
+                var live = stage != "none" && await DiagnosticsTests.RunLiveAsync(root, collect, flutter: stage == "flutter", kotlinTargets: stage == "kotlin-targets");
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (diagnostics" + (live ? ", live runtimes" : "") + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--bazel")
             {
                 // Bazel files, the Bazel build system and build caches; no Bazel, buildifier or sccache is needed.
@@ -173,6 +188,7 @@ internal static class Program
                 return failures.Count == 0 ? 0 : 1;
             }
             DiagnosticTests.Run(root, Check);
+            DiagnosticsTests.Run(Check);
             ErrorLensTests.Run(Check);
             EtwTests.Run(Check);
             ScrollBarMapTests.Run(Check);

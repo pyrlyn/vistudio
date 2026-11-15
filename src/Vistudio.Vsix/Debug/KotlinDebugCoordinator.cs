@@ -101,7 +101,11 @@ namespace Vistudio
                         guidLaunchDebugEngine = new Guid(EngineId), fSendToOutputWindow = true
                     };
                     environment.Log("Launching Kotlin/JVM debugger for " + mainClass + " (Gradle). Program output appears in Debug Output.");
-                    debugger.LaunchDebugTargets4(1, new[] { target }, new VsDebugTargetProcessInfo[1]);
+                    // Visual Studio's Diagnostic Tools refuses Debug Adapter Host engines (T71); Vistudio Diagnostics
+                    // finds the JVM that Gradle starts and shows its CPU, memory and heap instead.
+                    Diagnostics.DiagnosticsSessions.WatchJvm(mainClass!, (string?)launch["env"]?["JAVA_HOME"] ?? settings.GradleJavaHome);
+                    try { debugger.LaunchDebugTargets4(1, new[] { target }, new VsDebugTargetProcessInfo[1]); }
+                    catch { Diagnostics.DiagnosticsSessions.CancelPending("The Kotlin debug launch failed."); throw; }
                     launched = true; // Native debugger events now own the server lease.
                 }
             }

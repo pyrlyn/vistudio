@@ -98,7 +98,7 @@ With the Export Template and solution-save changes (built from HEAD `ca1b205` pl
 Found and not fixed:
 
 - **Exported templates do not show in File > New > Project.** Visual Studio indexes them (`NpdProjectTemplateCache`), but the wizard writes no `LanguageTag`, `PlatformTag` or `ProjectTypeTag`, and the dialog lists no untagged template of the Vistudio project types. A copy with the three tags added to its `.vstemplate` was listed under Dart and created DartApp1 as above. Adding the tags by hand, or creating the project with `Solution.AddFromTemplate`, works around it.
-- **Build of a Dart project whose dependencies are not resolved fails.** DartApp1 (no `.dart_tool`, which the template leaves out like any fresh clone) failed `dart analyze` with "Target of URI doesn't exist: 'package:dartapp/dartapp.dart'" until `dart pub get` ran, after which it found no issues. Dart debugging runs `pub get` first; Build does not. *Since addressed (2026-11-16), see "Dart Build resolves dependencies" below; not yet re-checked in Visual Studio.*
+- **Build of a Dart project whose dependencies are not resolved fails.** DartApp1 (no `.dart_tool`, which the template leaves out like any fresh clone) failed `dart analyze` with "Target of URI doesn't exist: 'package:dartapp/dartapp.dart'" until `dart pub get` ran, after which it found no issues. Dart debugging runs `pub get` first; Build does not. *Fixed (2026-11-16) and checked in Visual Studio with DartApp1; see "Dart Build resolves dependencies" below.*
 - **Project > Connected Services > Manage Connected Services** does nothing for these projects.
 - In a `.c` file of a Vistudio project, the C/C++ editor's project dropdown says "Miscellaneous Files" (C++ IntelliSense does not know the project).
 - The Error List entry for a build that cannot start shows line 0.
@@ -119,4 +119,12 @@ Found and not fixed:
 
 Build of a native `.dartproj` now runs `dart pub get` (`flutter pub get` for Flutter packages) in the package folder before the build commands when the package is unresolved: no `.dart_tool\package_config.json`, or `pubspec.yaml` / `pubspec.lock` newer than it (a pub workspace member uses the nearest `package_config.json` above it). Rebuild runs it between Clean and Build when a Clean command is set. Nothing is added when the build commands already run `pub get`, for Run and Test (the tools resolve by themselves) or for Bazel builds. The Build pane prints why it runs. F5 for Dart uses the same staleness check instead of checking only that `package_config.json` exists.
 
-Validation performed: `Vistudio.Tests --packages none` PASS, 515 assertions, including the new Dart dependency checks with stand-in `dart.bat` / `flutter.bat` (no SDK run); `Vistudio.Tests --bazel` PASS, 120 assertions; `Vistudio.Vsix.csproj` builds with Visual Studio MSBuild. Not yet checked: a Solution Build of DartApp1 in Visual Studio against a real Dart SDK.
+Validation performed: `Vistudio.Tests --packages none` PASS, 515 assertions, including the new Dart dependency checks with stand-in `dart.bat` / `flutter.bat` (no SDK run); `Vistudio.Tests --bazel` PASS, 120 assertions; `Vistudio.Vsix.csproj` builds with Visual Studio MSBuild.
+
+Visual Studio, DTE only (Debug VSIX `503F4DB9…` from commit `7de5d7c` installed into `VistudioDart`; the Flutter SDK's Dart 3.x on PATH; DartApp1 from the exported template, its `.dart_tool` moved aside first): 15 checks PASS, ActivityLog without Vistudio errors.
+
+- Solution Build 1, unresolved: the Build pane shows "Dependencies are not resolved (no .dart_tool\package_config.json); running dart pub get first.", then `dart.EXE pub get` ("Got dependencies!") and `dart.EXE analyze` ("No issues found!"); the build succeeds and `package_config.json` exists. This is the build that failed with "Target of URI doesn't exist" before.
+- Build 2, resolved: only `dart analyze`, no pub get.
+- Build 3, `pubspec.yaml` touched: "pubspec.yaml changed after the last pub get", pub get, analyze, success.
+- Build 4: no pub get. pub rewrote `package_config.json` in build 3 even though the resolution was unchanged (its time moved past the touched pubspec), so an edited pubspec does not trigger pub get on every later build.
+- Seen, not investigated: in builds 3 and 4 the Build pane text read right after `BuildState` became Done did not yet contain the "Build: 1 succeeded" summary line; `LastBuildInfo` reported success.

@@ -120,7 +120,7 @@ namespace Vistudio.Packages
                 }
                 var updated = manifest.Manager.ApplyOutdated(declared, outputs);
                 var outdated = updated.Count(p => p.IsOutdated);
-                Log(manifest.Manager.DisplayName + " " + manifest.ManifestPath + ": " + updated.Count + " packages, " + outdated + " outdated.");
+                Log(manifest.Manager.DisplayName + " " + manifest.ManifestPath + ": " + updated.Count + (updated.Count == 1 ? " package, " : " packages, ") + outdated + " outdated.");
                 result = new PackageState(updated, commands.Count == 0 ? manifest.Manager.DisplayName + " reports no newer versions." : null, true);
             }
             catch (Exception e) when (e is PackageManagerException || e is IOException || e is UnauthorizedAccessException || e is InvalidOperationException

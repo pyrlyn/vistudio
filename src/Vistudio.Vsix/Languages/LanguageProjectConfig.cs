@@ -40,7 +40,16 @@ namespace Vistudio.Languages
         protected override async Task<bool> RunAsync(string operation, Action<string> mirror, CancellationToken token)
         {
             await package.SaveAllAsync();
-            var success = await package.RunCommandsAsync(project.Metadata, operation, mirror, token);
+            await package.JoinableTaskFactory.SwitchToMainThreadAsync(token);
+            var metadata = project.Metadata;
+            package.ReportBuildProblem(project, metadata, null);
+            string? problem = null;
+            var success = await package.RunCommandsAsync(metadata, operation, mirror, token, reason => problem = reason);
+            if (problem != null)
+            {
+                await package.JoinableTaskFactory.SwitchToMainThreadAsync(token);
+                package.ReportBuildProblem(project, metadata, problem);
+            }
             project.LastSuccessfulBuildUtc = success && operation != "clean" ? DateTime.UtcNow : (DateTime?)null;
             return success;
         }

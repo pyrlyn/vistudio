@@ -23,7 +23,7 @@ namespace Vistudio
     /// in their standard editors. Shared by the Kotlin project and the language projects; each supplies its metadata,
     /// tree, icons, browse objects and configurations. The project's own tool stays the build system.
     /// </summary>
-    internal abstract class TreeProjectNode : IVsUIHierarchy, IVsProject, IVsPersistHierarchyItem, IVsGetCfgProvider
+    internal abstract class TreeProjectNode : IVsUIHierarchy, IVsProject3, IVsPersistHierarchyItem, IVsGetCfgProvider, IOleCommandTarget
     {
         protected const uint Root = VSConstants.VSITEMID_ROOT;
         private const uint Nil = VSConstants.VSITEMID_NIL;
@@ -540,7 +540,32 @@ namespace Vistudio
         // UNKNOWNGROUP, not NOTSUPPORTED: NOTSUPPORTED ends command routing at the hierarchy, so the packages' own
         // context-menu commands (package nodes, Kotlin targets) never got their status queried and stayed disabled.
         public int QueryStatusCommand(uint itemid, ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) =>
+            QueryProjectCommands(pguidCmdGroup, cCmds, prgCmds);
+
+        // The shell asks the selected project through IOleCommandTarget when Solution Explorer is not the active window
+        // (Project menu with the editor or Output focused), and through QueryStatusCommand when it is.
+        int IOleCommandTarget.QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) =>
+            QueryProjectCommands(pguidCmdGroup, cCmds, prgCmds);
+
+        int IOleCommandTarget.Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) =>
             (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+
+        // NuGet's Manage NuGet Packages assumes an MSBuild project and fails with "The project is unsupported"; each
+        // project's own package manager owns its dependencies (the Packages node), so the command is hidden.
+        private static readonly Guid NuGetDialogCommands = new Guid("25FD982B-8CAE-4CBD-A440-E03FFCCDE106");
+        private const uint ManageNuGetPackages = 0x100;
+
+        private static int QueryProjectCommands(Guid group, uint cCmds, OLECMD[] prgCmds)
+        {
+            if (group != NuGetDialogCommands || cCmds == 0 || prgCmds == null)
+                return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+            for (var i = 0; i < cCmds; i++)
+            {
+                if (prgCmds[i].cmdID != ManageNuGetPackages) return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_UNKNOWNGROUP;
+                prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_INVISIBLE);
+            }
+            return VSConstants.S_OK;
+        }
 
         public int ExecCommand(uint itemid, ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
         {
@@ -614,6 +639,41 @@ namespace Vistudio
             return opener.OpenStandardEditor((uint)__VSOSEFLAGS.OSE_ChooseBestStdEditor, item.Model.Path, ref rguidLogicalView, "%3",
                 this, itemid, punkDocDataExisting, services, out ppWindowFrame);
         }
+
+        /// <summary>
+        /// Opens a document in the editor Visual Studio names: Open With, and the documents a solution restores when it
+        /// opens (the shell reopens each in the editor it was closed with). Without IVsProject2/3 each restored tab failed
+        /// with E_NOINTERFACE ("An error occurred in 'App' while attempting to open ...").
+        /// </summary>
+        public int OpenItemWithSpecific(uint itemid, uint grfEditorFlags, ref Guid rguidEditorType, string pszPhysicalView, ref Guid rguidLogicalView,
+            IntPtr punkDocDataExisting, out IVsWindowFrame? ppWindowFrame)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            ppWindowFrame = null;
+            if (!items.TryGetValue(itemid, out var item) || !item.Model.IsDocument) return VSConstants.E_INVALIDARG;
+            var opener = GetService(typeof(SVsUIShellOpenDocument)) as IVsUIShellOpenDocument
+                ?? throw new InvalidOperationException("Visual Studio document service is unavailable.");
+            var services = site ?? GetService(typeof(IOleServiceProvider)) as IOleServiceProvider
+                ?? throw new InvalidOperationException("Visual Studio service provider is unavailable.");
+            return opener.OpenSpecificEditor(grfEditorFlags, item.Model.Path, ref rguidEditorType, pszPhysicalView, ref rguidLogicalView, "%3",
+                this, itemid, punkDocDataExisting, services, out ppWindowFrame);
+        }
+
+        public int ReopenItem(uint itemid, ref Guid rguidEditorType, string pszPhysicalView, ref Guid rguidLogicalView, IntPtr punkDocDataExisting,
+            out IVsWindowFrame? ppWindowFrame)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return OpenItemWithSpecific(itemid, 0, ref rguidEditorType, pszPhysicalView, ref rguidLogicalView, punkDocDataExisting, out ppWindowFrame);
+        }
+
+        // The tree mirrors the folder and each project's own tool owns its files: no adding, removing or moving through the project.
+        public int RemoveItem(uint dwReserved, uint itemid, out int pfResult) { pfResult = 0; return VSConstants.E_NOTIMPL; }
+
+        public int AddItemWithSpecific(uint itemidLoc, VSADDITEMOPERATION dwAddItemOperation, string pszItemName, uint cFilesToOpen, string[] rgpszFilesToOpen,
+            IntPtr hwndDlgOwner, uint grfEditorFlags, ref Guid rguidEditorType, string pszPhysicalView, ref Guid rguidLogicalView, VSADDRESULT[] pResult) =>
+            VSConstants.E_NOTIMPL;
+
+        public int TransferItem(string pszMkDocumentOld, string pszMkDocumentNew, IVsWindowFrame punkWindowFrame) => VSConstants.E_NOTIMPL;
 
         public int GetItemContext(uint itemid, out IOleServiceProvider? ppSP) { ppSP = null; return VSConstants.S_OK; }
 

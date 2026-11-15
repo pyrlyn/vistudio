@@ -29,7 +29,7 @@ namespace Vistudio
         public string BuildTasks { get => settings.BuildTasks; set => settings.BuildTasks = value; }
         [Category("Gradle"), DisplayName("Test tasks")]
         public string TestTasks { get => settings.TestTasks; set => settings.TestTasks = value; }
-        [Category("Gradle"), DisplayName("Run tasks"), Description("Run task paths, e.g. :app:jvmRun, :app:jsNodeDevelopmentRun or :app:runDebugExecutableMingwX64. Discover actual names with Kotlin: Gradle targets and tasks.")]
+        [Category("Gradle"), DisplayName("Run tasks"), Description("Run task paths, e.g. :app:jvmRun, :app:jsNodeDevelopmentRun or :app:runDebugExecutableMingwX64. Discover actual names with Tools > Kotlin > Gradle targets and tasks.")]
         public string RunTasks { get => settings.RunTasks; set => settings.RunTasks = value; }
         [Category("Editor"), DisplayName("Rainbow braces"), Description("Color matching curly braces. Reopen editors after changing this setting.")]
         public bool RainbowBraces { get => settings.RainbowBraces; set => settings.RainbowBraces = value; }

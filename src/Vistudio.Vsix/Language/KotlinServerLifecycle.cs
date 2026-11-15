@@ -81,7 +81,7 @@ namespace Vistudio
                 if (!ReferenceEquals(process, current) || ReferenceEquals(process, expectedExit)) return null;
                 var detail = recentErrors.Count == 0 ? "" : ": " + string.Join(" ", recentErrors);
                 failure = "The Kotlin language server exited with code " + exitCode + detail
-                    + " Fix the server in Tools > Options > Kotlin, then run Kotlin: Restart Language Server.";
+                    + " Fix the server in Tools > Options > Kotlin, then run Tools > Kotlin > Restart Language Server.";
                 var error = new InvalidOperationException(failure);
                 ready.TrySetException(error);
                 imported.TrySetException(error);

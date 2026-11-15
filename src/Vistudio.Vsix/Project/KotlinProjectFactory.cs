@@ -48,7 +48,7 @@ namespace Vistudio
                 path = created;
             }
             else if ((grfCreateFlags & (uint)__VSCREATEPROJFLAGS.CPF_OPENFILE) == 0)
-                throw new NotSupportedException("Open the Gradle folder and run Tools > Kotlin: Create or Open .kotlinproj.");
+                throw new NotSupportedException("Open the Gradle folder and run Tools > Kotlin > Create or Open .kotlinproj.");
             var project = new KotlinProjectNode(package, path);
             if ((grfCreateFlags & (uint)__VSCREATEPROJFLAGS.CPF_CLONEFILE) != 0) package.ImportWhenLoaded(path);
             var unknown = Marshal.GetIUnknownForObject(project);

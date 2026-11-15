@@ -8,7 +8,7 @@ An installable C# VSIX for **Visual Studio 2026 18.12+ (x64 or ARM64)**, using t
 2. Close Visual Studio and open the VSIX installer. Restart Visual Studio after installation.
 3. Use **File > Open > Folder** to open the directory containing your project's `gradlew.bat`.
 4. Click a `.kt` or `.kts` file in Solution Explorer to preview it, or double-click to keep it open. Both extensions are registered with Visual Studio's code editor and Kotlin content type. Syntax and brace coloring work without a language server. This VSIX registers Visual Studio associations, not Windows Explorer default applications. Java `.properties` files (`gradle.properties`, `local.properties`, `gradle-wrapper.properties`, resource bundles) also open in the code editor with their own icon and a Vistudio TextMate grammar, since Visual Studio ships none: `#`/`!` comments, keys, `=`/`:` separators, `\uXXXX` and backslash escapes, line continuations, `true`/`false` and numeric values, and `{0}`/`${name}` placeholders.
-5. Use **Tools > Kotlin: Build with Gradle**, **Clean with Gradle**, **Test with Gradle**, or **Cancel Gradle**. Output and exit status appear in the **Kotlin** Output pane.
+5. Use **Tools > Kotlin > Build with Gradle**, **Clean with Gradle**, **Test with Gradle**, or **Cancel Gradle**. Output and exit status appear in the **Kotlin** Output pane.
 6. After compilation, errors and warnings appear in **View > Error List**. Double-click a located diagnostic to open its file at the reported line and column. Use the **Entire Solution** scope and **Build + IntelliSense** source filter if rows are hidden.
 
 If an experimental profile has not initialized its package registry yet, close that profile and run `devenv /RootSuffix VistudioTest /UpdateConfiguration` before reopening it. The test installation procedure is in [validation.md](docs/validation.md).
@@ -17,7 +17,7 @@ This development package retains version 0.1.0. To replace an earlier 0.1.0 inst
 
 ## Kotlin project in Solution Explorer
 
-With the Gradle folder open (**File > Open > Folder**), **Tools > Kotlin: Create or Open .kotlinproj** creates `vistudio.kotlinproj` (a versioned XML metadata file with the familiar .NET `Project / PropertyGroup / ItemGroup` layout), opens it as a Solution Explorer project and imports the Gradle model. Existing metadata opens directly with **File > Open > Project/Solution**.
+With the Gradle folder open (**File > Open > Folder**), **Tools > Kotlin > Create or Open .kotlinproj** creates `vistudio.kotlinproj` (a versioned XML metadata file with the familiar .NET `Project / PropertyGroup / ItemGroup` layout), opens it as a Solution Explorer project and imports the Gradle model. Existing metadata opens directly with **File > Open > Project/Solution**.
 
 Right-click the project for **Import Gradle Model**, **Run Tests with Gradle**, **Run with Gradle**, **Gradle Tasks...**, **Cancel Gradle** and **Edit Project File**. Select the project and press **F4** to edit its settings in the Properties window: Gradle JDK (detected installations or any JDK home), Gradle root, Build/Test/Run tasks, extra import configurations and the F5 entry point; the last import's Gradle and JVM versions are shown read-only. Invalid values are rejected with the reason.
 
@@ -33,7 +33,7 @@ Import resolves modules, direct/transitive libraries, project references, recogn
 
 Install a compatible standalone Kotlin language server separately, for example a release from [Kotlin/kotlin-lsp](https://github.com/Kotlin/kotlin-lsp). The VS Code extension package is not the classic Visual Studio plugin.
 
-Open **Tools > Kotlin: Settings** or **Tools > Options > Kotlin > General**:
+Open **Tools > Kotlin > Settings** or **Tools > Options > Kotlin > General**:
 
 | Setting | Meaning |
 | --- | --- |
@@ -49,7 +49,7 @@ Open **Tools > Kotlin: Settings** or **Tools > Options > Kotlin > General**:
 | Inlay hints / Inlay hints (Kotlin) / Inlay hints (Java) | When `.kt`, `.kts` and `.java` editors show inlay hints (`Always` by default, applies to open editors on OK) and one switch per hint kind, all on. See [Inlay hints](#inlay-hints) |
 | Solution Explorer: Show hidden files | Off by default: files and folders whose name starts with `.` are not shown in `.kotlinproj` trees. Turning it on refreshes loaded Kotlin projects without reopening them |
 
-Apply changes, then run **Kotlin: Restart Language Server**. Opening a Kotlin file activates the client. It sends the `kotlin` language ID and the opened folder as the LSP root. Completion, hover, definitions, references, and diagnostics depend on the external server's capabilities and its compatibility with Visual Studio's LSP client. No language server is bundled or automatically downloaded.
+Apply changes, then run **Tools > Kotlin > Restart Language Server**. Opening a Kotlin file activates the client. It sends the `kotlin` language ID and the opened folder as the LSP root. Completion, hover, definitions, references, and diagnostics depend on the external server's capabilities and its compatibility with Visual Studio's LSP client. No language server is bundled or automatically downloaded.
 
 Tested backend: the official **Kotlin language server 271.2085.0 Windows x64 standalone archive** (`kotlin-server-271.2085.0.win.zip`, published SHA-256 `da210a7d84a06f855b8b7b04c5bd54936d270e79f3ea13a9c6ddc2f1046b2a98`; build 263.7084.0 expired on 2026-11-13), using `bin/intellij-server.exe --stdio` and its bundled JetBrains Runtime 25. The deprecated `kotlin-lsp.cmd` launcher is unnecessary. Keep the project's Gradle JDK separate; the sample uses JDK 11. Download the archive and published SHA-256 from the [official release](https://github.com/Kotlin/kotlin-lsp/releases/tag/kotlin-lsp%2Fv263.7084.0), not the VS Code VSIX.
 
@@ -129,9 +129,9 @@ Not yet implemented: Native/JS/Wasm debug adapters, Android device management, a
 
 ## Multiplatform build, run and test
 
-Use **Tools > Kotlin: Gradle targets and tasks...** to discover the project's actual Gradle tasks. Search by target, name or description, select one or more tasks and choose **Run selected**. Qualified task paths preserve subproject identity and custom target names. JVM, Native, JS and Wasm use the project's Gradle Wrapper and target toolchains; no Kotlin build is delegated to MSBuild. Discovery runs the bundled init script with configuration caching disabled for that invocation only.
+Use **Tools > Kotlin > Gradle targets and tasks...** to discover the project's actual Gradle tasks. Search by target, name or description, select one or more tasks and choose **Run selected**. Qualified task paths preserve subproject identity and custom target names. JVM, Native, JS and Wasm use the project's Gradle Wrapper and target toolchains; no Kotlin build is delegated to MSBuild. Discovery runs the bundled init script with configuration caching disabled for that invocation only.
 
-**Kotlin: Run with Gradle** executes the configured Run tasks. Build, Test and Run each have independent settings. For KMP test suites choose `allTests` or a target's test task through the picker or Test tasks setting; plain JVM projects retain the `test` default. Output, cancellation, save-before-run and compiler diagnostics use the same pipeline as Build. A nonzero exit remains a failure; unsupported host targets are reported by Gradle. Browser development servers remain active until canceled. Programs needing standard input require an external terminal.
+**Tools > Kotlin > Run with Gradle** executes the configured Run tasks. Build, Test and Run each have independent settings. For KMP test suites choose `allTests` or a target's test task through the picker or Test tasks setting; plain JVM projects retain the `test` default. Output, cancellation, save-before-run and compiler diagnostics use the same pipeline as Build. A nonzero exit remains a failure; unsupported host targets are reported by Gradle. Browser development servers remain active until canceled. Programs needing standard input require an external terminal.
 
 See the [four-target sample and repeatable integration test](samples/kotlin-multiplatform/README.md). The tested runtime matrix is JVM, Windows Native (`mingwX64`), JS/Node and Wasm/Node. Other Native hosts and browser/device workflows require the corresponding toolchains and are not claimed tested. F5 debugging remains JVM-specific.
 
@@ -233,7 +233,7 @@ Kotlin/JS, Kotlin/Wasm and Kotlin/Native debugging are approved as later phases 
 
 ## Compose Multiplatform previews
 
-**Tools > Kotlin: Compose Preview** opens the **Kotlin Compose Preview** window. It follows the active `.kt` file, lists its `@Preview` functions (`androidx.compose.ui.tooling.preview.Preview` or any other annotation named `Preview`) and shows them as images. The window renders when a file is first shown and after each save of that file (**Refresh on save**); **Refresh** saves and renders again, **Cancel** stops it. Click a preview's name to go to its function.
+**Tools > Kotlin > Compose Preview** opens the **Kotlin Compose Preview** window. It follows the active `.kt` file, lists its `@Preview` functions (`androidx.compose.ui.tooling.preview.Preview` or any other annotation named `Preview`) and shows them as images. The window renders when a file is first shown and after each save of that file (**Refresh on save**); **Refresh** saves and renders again, **Cancel** stops it. Click a preview's name to go to its function.
 
 Rendering stays on Gradle and the module's own Compose version. A temporary init script compiles the module's JVM (desktop) target, then a small renderer runs in a separate JVM on that target's runtime classpath and draws each preview with Compose's `ImageComposeScene`. The extension ships no Compose or Skia binaries. Supported `@Preview` arguments: `name`, `widthDp`, `heightDp`, `showBackground`, `backgroundColor`; without a size the image wraps the content. Previews are drawn at 2× and shown at their dp size.
 

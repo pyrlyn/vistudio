@@ -2,7 +2,7 @@
 
 Uses the same Kotlin 2.4.21 and checksum-pinned Gradle 8.14.7 as the JVM sample. Gradle runs on the project JDK; the C# extension is built separately by MSBuild. No test framework is added: the shared executable contains assertions and prints `VISTUDIO_KMP_PASS` only after they succeed.
 
-Open this directory with Visual Studio's **File > Open > Folder**. Use **Tools > Kotlin: Gradle targets and tasks...**, filter by target or task name, select a task, then **Run selected**. The task list comes from Gradle, including qualified paths for subprojects. The same workflow works with custom target names and user-defined tasks. Discovery configures the project but does not compile or run it.
+Open this directory with Visual Studio's **File > Open > Folder**. Use **Tools > Kotlin > Gradle targets and tasks...**, filter by target or task name, select a task, then **Run selected**. The task list comes from Gradle, including qualified paths for subprojects. The same workflow works with custom target names and user-defined tasks. Discovery configures the project but does not compile or run it.
 
 | Target | Build | Run and self-test |
 | --- | --- | --- |
@@ -13,11 +13,11 @@ Open this directory with Visual Studio's **File > Open > Folder**. Use **Tools >
 
 `commonMain` declares `expect fun platformName()`. Its `actual` implementations live in `jvmMain`, `mingwX64Main`, and in `jsMain`/`wasmJsMain` through the shared `webMain` source set of Kotlin's default hierarchy, so each target has its own source set and the program prints `Platform: JVM …`, `Native mingwX64`, `Web/JS` or `Web/Wasm`.
 
-As a `.kotlinproj` (Tools > Kotlin: Create or Open .kotlinproj, then Import Gradle Model), Solution Explorer shows `commonMain` and `webMain`, a `Targets` node with `jvm`, `js`, `wasmJs` and `mingwX64`, each with its own source set, dependencies and Build/Run/Test commands, and a **Startup target** project property for Run with Gradle and Ctrl+F5. See [Kotlin targets](../../docs/project-file.md#kotlin-targets).
+As a `.kotlinproj` (Tools > Kotlin > Create or Open .kotlinproj, then Import Gradle Model), Solution Explorer shows `commonMain` and `webMain`, a `Targets` node with `jvm`, `js`, `wasmJs` and `mingwX64`, each with its own source set, dependencies and Build/Run/Test commands, and a **Startup target** project property for Run with Gradle and Ctrl+F5. See [Kotlin targets](../../docs/project-file.md#kotlin-targets).
 
 `build` builds all configured targets; `verifyTargets` executes the assertions on all four runtimes. Run these in separate invocations: Kotlin's development and production JS/Wasm tasks can share output paths, and combining them in one invocation triggers Gradle's implicit-dependency validation. `allTests` is the KMP aggregate for projects with ordinary test source sets; this sample uses executable self-tests instead.
 
-For repeat use, put the desired task path in **Kotlin: Settings > Gradle > Run tasks**, then use **Kotlin: Run with Gradle**. Build and Test have independent task settings. **Kotlin: Cancel Gradle** cancels a build, discovery, run or development server. Output appears in the Kotlin pane. Standard input is closed; interactive console programs need an external terminal.
+For repeat use, put the desired task path in **Tools > Kotlin > Settings > Gradle > Run tasks**, then use **Tools > Kotlin > Run with Gradle**. Build and Test have independent task settings. **Tools > Kotlin > Cancel Gradle** cancels a build, discovery, run or development server. Output appears in the Kotlin pane. Standard input is closed; interactive console programs need an external terminal.
 
 Native support is constrained by Kotlin's host toolchains. This Windows fixture builds and runs `mingwX64`; Apple targets require their supported macOS/Xcode host. The extension does not emulate another host. Browser, Android and other project tasks can be selected when present, but those environments are not covered by this fixture. F5 continues to use the existing **JVM** debug adapter; Native/JS/Wasm launches here are runs without that debugger.
 

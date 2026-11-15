@@ -129,18 +129,23 @@ namespace Vistudio.Languages
         }
 
         /// <summary>Runs a project's commands for <paramref name="operation"/> in order, stopping at the first failure.</summary>
-        internal async Task<bool> RunCommandsAsync(LanguageProjectFile project, string operation, Action<string> mirror, CancellationToken token)
+        /// <param name="problem">Receives the reason when the commands cannot start (a missing tool, no command set): the
+        /// tool's own output says nothing then, so a build shows the reason in the Error List too.</param>
+        internal async Task<bool> RunCommandsAsync(LanguageProjectFile project, string operation, Action<string> mirror, CancellationToken token,
+            Action<string>? problem = null)
         {
             IReadOnlyList<System.Diagnostics.ProcessStartInfo> commands;
             try { commands = await Task.Run(() => project.Commands(operation), token); }
             catch (Exception e) when (e is System.IO.FileNotFoundException || e is ArgumentException)
             {
                 mirror(project.Name + ": " + e.Message);
+                problem?.Invoke(e.Message);
                 return false;
             }
             if (commands.Count == 0)
             {
                 mirror(project.Name + ": no " + operation + " command is set in the project properties.");
+                if (operation != "clean") problem?.Invoke("No " + operation + " command is set in the project properties.");
                 return operation == "clean";
             }
             foreach (var command in commands)
@@ -150,6 +155,32 @@ namespace Vistudio.Languages
                 if (exit != 0) { mirror(project.Name + ": exited with code " + exit + "."); return false; }
             }
             return true;
+        }
+
+        private ErrorListProvider? buildProblems;
+        private readonly Dictionary<string, ErrorTask> buildProblemByProject = new Dictionary<string, ErrorTask>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Shows why a project's build could not start as one Error List entry for that project, or removes the entry
+        /// (<paramref name="message"/> null) when its next build starts.
+        /// </summary>
+        internal void ReportBuildProblem(IVsHierarchy hierarchy, LanguageProjectFile project, string? message)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            buildProblems ??= new ErrorListProvider(this) { ProviderGuid = new Guid("0b5f6b84-6a3e-4f5c-9a43-7d2c1e8f5b61"), ProviderName = "Vistudio Projects" };
+            if (buildProblemByProject.TryGetValue(project.FilePath, out var previous))
+            {
+                buildProblems.Tasks.Remove(previous);
+                buildProblemByProject.Remove(project.FilePath);
+            }
+            if (message == null) return;
+            var task = new ErrorTask
+            {
+                Category = TaskCategory.BuildCompile, ErrorCategory = TaskErrorCategory.Error, Text = message,
+                Document = project.FilePath, HierarchyItem = hierarchy, CanDelete = false
+            };
+            buildProblems.Tasks.Add(task);
+            buildProblemByProject[project.FilePath] = task;
         }
 
         /// <summary>Run / Run Tests from the project context menu, Ctrl+F5 without a debug program: output in the "Vistudio Projects" pane.</summary>

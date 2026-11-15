@@ -1,6 +1,6 @@
 # Kotlin/JVM sample
 
-Open this folder using Visual Studio's File > Open > Folder. Use Tools > Kotlin: Build with Gradle, or run `gradlew.bat build run --console=plain` from a terminal. A compatible JDK is required; the example targets JVM 11. The first build downloads Gradle and Kotlin dependencies.
+Open this folder using Visual Studio's File > Open > Folder. Use Tools > Kotlin > Build with Gradle, or run `gradlew.bat build run --console=plain` from a terminal. A compatible JDK is required; the example targets JVM 11. The first build downloads Gradle and Kotlin dependencies.
 
 The Gradle Wrapper launcher and JAR come from Gradle v8.14.7 under the license in gradle/LICENSE. The distribution is checksum-pinned. Wrapper JAR SHA-256: `ad16bca46cb71bb5887c546860d93992aeee35c1fdaf4a242b0a612375d937e0`.
 

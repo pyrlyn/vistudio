@@ -51,7 +51,7 @@ namespace Vistudio
         {
             if (!loaded) throw new InvalidOperationException("Open a Kotlin source file first to start the Kotlin language server.");
             if (string.IsNullOrWhiteSpace(KotlinSettings.Load().LanguageServerPath))
-                throw new InvalidOperationException("The Kotlin language server is not configured. Set Tools > Options > Kotlin > General, then run Kotlin: Restart Language Server.");
+                throw new InvalidOperationException("The Kotlin language server is not configured. Set Tools > Options > Kotlin > General, then run Tools > Kotlin > Restart Language Server.");
             environment.Log("Waiting for Kotlin server initialization and Gradle import...");
             // Fails immediately when the server process already exited or exits while waiting.
             await lifecycle.WaitForDebugAsync(token).ConfigureAwait(false);
@@ -117,7 +117,7 @@ namespace Vistudio
         {
             if (string.IsNullOrWhiteSpace(KotlinSettings.Load().LanguageServerPath))
             {
-                environment.Log("LSP is not configured. Set Tools > Options > Kotlin > General, then run Kotlin: Restart Language Server.");
+                environment.Log("LSP is not configured. Set Tools > Options > Kotlin > General, then run Tools > Kotlin > Restart Language Server.");
                 return;
             }
             if (await environment.GetFolderAsync() == null) return;
@@ -207,7 +207,7 @@ namespace Vistudio
             }
 #pragma warning restore VSTHRD003
             if (exitFailure != null) environment.Log(exitFailure);
-            else lifecycle.Fail("Kotlin LSP initialization failed. Check the Kotlin Output pane and the configured stdio launcher/JDK, then run Kotlin: Restart Language Server.");
+            else lifecycle.Fail("Kotlin LSP initialization failed. Check the Kotlin Output pane and the configured stdio launcher/JDK, then run Tools > Kotlin > Restart Language Server.");
             await StopProcessAsync().ConfigureAwait(false);
             return new InitializationFailureContext { FailureMessage = "Kotlin LSP initialization failed. Check the Kotlin Output pane and the configured stdio launcher/JDK, then restart the language server." };
         }

@@ -7,7 +7,7 @@ The file uses the familiar .NET project XML layout (`Project`, `PropertyGroup`, 
 ## Usage
 
 1. Open the Kotlin project with **File > Open > Folder**. The Gradle root must contain `gradlew.bat`; the existing global Gradle root setting can point to a subdirectory.
-2. Run **Tools > Kotlin: Create or Open .kotlinproj**. It creates `vistudio.kotlinproj` when the folder has none (never replacing an existing file), opens it as a Solution Explorer project (closing the folder view) and imports the Gradle model if it was never imported. With a Kotlin project already loaded it only reveals Solution Explorer. Existing metadata can also be opened with **File > Open > Project/Solution**. **Tools > Kotlin: Import Gradle project** still works for an open folder.
+2. Run **Tools > Kotlin > Create or Open .kotlinproj**. It creates `vistudio.kotlinproj` when the folder has none (never replacing an existing file), opens it as a Solution Explorer project (closing the folder view) and imports the Gradle model if it was never imported. With a Kotlin project already loaded it only reveals Solution Explorer. Existing metadata can also be opened with **File > Open > Project/Solution**. **Tools > Kotlin > Import Gradle project** still works for an open folder.
 3. Select the project and press **F4**. **Gradle JDK** offers detected installations in its drop-down and accepts any typed JDK home; empty uses global settings. Its version and vendor are read from the JDK's `release` file; both `bin/java.exe` and `bin/javac.exe` are required, and saving also refreshes the Gradle Wrapper/JDK tool snapshot. The other editable values are Gradle root, Build/Test/Run tasks, Import configurations, Startup target (Kotlin Multiplatform) and the Debug group (main class, source file, arguments, working directory). Every change is validated by `KotlinProjectFile.Set`/`SetJdk` against the file as it is on disk and saved atomically; the Properties window rejects invalid input with the reason and leaves the file unchanged. Read-only values: project file, name, GUID, JDK version, and the last import's time, Gradle version and JVM.
 4. Kotlin Build/Clean/Test/Run, task discovery and F5 read the project settings on their next invocation. Debug launch inherits the project JDK unless its launch environment already supplies `JAVA_HOME`. Running processes are not restarted on save.
 5. Right-click the project: **Import Gradle Model** resolves dependencies and updates the generated inventory; **Cancel Gradle** stops the owned process; **Run Tests with Gradle**, **Run with Gradle** and **Gradle Tasks...** run on the selected project; **Edit Project File** opens the XML (saving it refreshes the tree). These commands appear only for Kotlin projects and share one Gradle gate with solution builds and the Tools menu commands. Modified documents are saved through the IDE first.
@@ -77,7 +77,7 @@ For example, a manually recorded library can use `<Library Include="org.example:
 
 ## Solution Explorer project
 
-**File > Open > Project/Solution** accepts `*.kotlinproj`, and a `.sln` can reference one with project type `{E7447D71-1121-42DC-8A4D-D3D78B3CC633}`. The project is a hand-written VSSDK hierarchy (`IVsUIHierarchy`, `IVsProject`, `IVsPersistHierarchyItem`, configuration provider and buildable configurations); it adds no package dependencies, and the file is never evaluated by MSBuild. Only existing metadata can be opened; create it from an open folder with **Tools > Kotlin: Create or Open .kotlinproj**.
+**File > Open > Project/Solution** accepts `*.kotlinproj`, and a `.sln` can reference one with project type `{E7447D71-1121-42DC-8A4D-D3D78B3CC633}`. The project is a hand-written VSSDK hierarchy (`IVsUIHierarchy`, `IVsProject`, `IVsPersistHierarchyItem`, configuration provider and buildable configurations); it adds no package dependencies, and the file is never evaluated by MSBuild. Only existing metadata can be opened; create it from an open folder with **Tools > Kotlin > Create or Open .kotlinproj**.
 
 Tree, built by `KotlinProjectTree` from the GradleImport snapshot:
 
@@ -162,7 +162,7 @@ The GradleImport property group adds `ProjectKind` (JVM, Android, JS, Wasm, Nati
 
 `StartupTarget` (editable, Properties window drop-down under **Targets**) selects a target by id; a unique plain name such as `js` is stored as its id, and unknown names are rejected with the valid ids. When set:
 
-- **Run with Gradle** (and Tools > Kotlin: Run with Gradle) runs the startup target's run task instead of `RunTasks`;
+- **Run with Gradle** (and Tools > Kotlin > Run with Gradle) runs the startup target's run task instead of `RunTasks`;
 - F5 debugs JVM targets only (see [F5 and Ctrl+F5](#f5-and-ctrlf5)); for other targets F5 explains this and Ctrl+F5 runs the target's run task;
 - a startup target that no longer exists after a reimport stops F5 with its name; Run, import and solution builds ignore it.
 

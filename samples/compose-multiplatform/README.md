@@ -7,4 +7,4 @@ Sample for the Kotlin Compose Preview window.
 
 The desktop entry point is `sample.MainKt` in `desktopMain` (Compose `application` block).
 
-To preview it in Visual Studio, open this folder, run **Tools > Kotlin: Compose Preview** and open `Cards.kt`. The first render downloads and compiles the desktop target; later renders reuse the Gradle build.
+To preview it in Visual Studio, open this folder, run **Tools > Kotlin > Compose Preview** and open `Cards.kt`. The first render downloads and compiles the desktop target; later renders reuse the Gradle build.

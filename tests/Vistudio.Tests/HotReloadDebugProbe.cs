@@ -29,6 +29,11 @@ internal static class HotReloadDebugProbe
         private readonly List<JObject> pending = new List<JObject>();
         private int sequence;
         private volatile string? closed;
+        private readonly DateTime created = DateTime.UtcNow;
+        private readonly List<string> events = new List<string>();
+
+        /// <summary>DAP events in arrival order with their time since the connection (output events without their text).</summary>
+        internal string[] Events(bool withOutput = false) { lock (events) return events.Where(e => withOutput || !e.EndsWith(" output")).Select(e => e.Length > 160 ? e.Substring(0, 160) + "..." : e).ToArray(); }
 
         internal Peer(Func<CancellationToken, Task<JObject?>> read, Func<JObject, Task> send, bool lsp)
         {
@@ -50,6 +55,9 @@ internal static class HotReloadDebugProbe
                             await send(new JObject { ["jsonrpc"] = "2.0", ["id"] = message["id"]!.DeepClone(), ["result"] = result });
                             continue;
                         }
+                        if (!lsp && (string?)message["type"] == "event")
+                            lock (events) events.Add(((DateTime.UtcNow - created).TotalSeconds).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s " + (string?)message["event"] +
+                                ((string?)message["event"] == "output" ? "" : " " + (message["body"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "")));
                         lock (pending) pending.Add(message);
                     }
                     closed = "connection closed";
@@ -126,7 +134,8 @@ internal static class HotReloadDebugProbe
             .Select(d => Path.Combine(d, "bin", "intellij-server.exe")).FirstOrDefault(File.Exists);
     }
 
-    internal static async Task<bool> RunAsync(string root, Action<bool, string> check)
+    /// <param name="cold">Also try a launch without a daemon first and report how it ends (the state before the session daemon).</param>
+    internal static async Task<bool> RunAsync(string root, Action<bool, string> check, bool cold = false)
     {
         var server = FindServer();
         var jps = JvmTools.FindTool("jps", null, null);
@@ -149,21 +158,11 @@ internal static class HotReloadDebugProbe
         Text("kotlin-1");
         const string mainClass = "sample.HotLoopKt";
 
-        // The server's debugger stops trying to attach about 30 s after the launch (seen in its log: "Debugger is waiting
-        // for application to start", then "Disconnected from the target VM"), and on a slow machine a cold "--no-daemon"
-        // Gradle start needs longer than that to reach the JVM. The probe is about reloading, not launch time, so its
-        // launches run on a Gradle daemon warmed up here (own registry, short idle timeout, ended below).
-        var launchDaemons = Path.Combine(Path.GetTempPath(), "vistudio-hr-daemons-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-        var launchToolArgs = new[] { "--console=plain", "-Dorg.gradle.daemon.registry.base=" + launchDaemons, "-Dorg.gradle.daemon.idletimeout=180000" };
-        var warm = new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-            "/d /v:off /s /c \"\".\\gradlew.bat\" --daemon " + string.Join(" ", launchToolArgs) + " classes\"")
-        { WorkingDirectory = project, UseShellExecute = false, CreateNoWindow = true };
-        // Not an OwnedProcess: its job would end the daemon together with this client.
-        using (var warmUp = System.Diagnostics.Process.Start(warm)!)
-        {
-            await Task.Run(() => warmUp.WaitForExit());
-            check(warmUp.ExitCode == 0, "Debugger: the program compiles on the Gradle daemon the launches use (exit " + warmUp.ExitCode + ")");
-        }
+        // The server's debugger stops trying to attach 30 s after the launch request (its log: "Debugger is waiting for
+        // application to start", then "Disconnected from the target VM"), and a Gradle client that first has to start a
+        // JVM for the build can need longer. As F5 in Visual Studio does (KotlinDebugCoordinator), every launch here runs
+        // on the session's Gradle daemon, warmed up right before the launch request. The registry path has a space.
+        var daemon = new GradleSessionDaemon(Path.Combine(root, "launch daemon", Guid.NewGuid().ToString("N").Substring(0, 8)));
 
         var start = ProcessCommands.LanguageServer(server, "--stdio \"--system-path=" + SettingsXml.PathFor("kotlin-lsp-hot-reload-probe") + "\"", project);
         // As the other server probes do on this machine: the Windows certificate store for the server's own downloads.
@@ -203,18 +202,28 @@ internal static class HotReloadDebugProbe
                 JObject Source() => new JObject { ["path"] = textFile };
                 JObject Breakpoints(params int[] lines) => new JObject { ["source"] = Source(), ["breakpoints"] = new JArray(lines.Select(l => new JObject { ["line"] = l })) };
 
-                async Task<(Peer Dap, TcpClient Client)> LaunchAsync(JObject config, int[] breakpoints)
+                async Task<(Peer Dap, TcpClient Client)> LaunchAsync(JObject config, int[] breakpoints, bool cold = false)
                 {
                     var tool = (JObject?)await lsp.CallAsync("workspace/executeCommand", new JObject { ["command"] = "intellij.java.buildTool", ["arguments"] = new JArray(new JObject { ["uri"] = new Uri(entry).AbsoluteUri }) });
+                    // The production path: launch arguments from KotlinJvmLaunch, the daemon warmed with the launch's environment.
+                    var arguments = KotlinJvmLaunch.Create(project, entry, mainClass, config, tool, "", cold ? null : daemon.ClientArguments);
+                    if (!cold)
+                    {
+                        var warmStarted = DateTime.UtcNow;
+                        var wasWarm = daemon.IsWarmFor((string?)arguments["env"]?["JAVA_HOME"]);
+                        var gradle = new List<string>();
+                        var warm = await daemon.WarmUpAsync(project, KotlinJvmLaunch.EnvironmentOf(arguments), line => { lock (gradle) gradle.Add(line); }, CancellationToken.None);
+                        Console.WriteLine("    INFO daemon " + (wasWarm ? "already warm" : "warmed up in " + (int)(DateTime.UtcNow - warmStarted).TotalSeconds + " s") + " (server environment: " +
+                            (tool?["env"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "none") + ")");
+                        if (warm != 0) throw new InvalidOperationException("Gradle daemon warm-up failed (exit " + warm + "): " + string.Join(" | ", gradle.Skip(Math.Max(0, gradle.Count - 8))));
+                    }
                     var port = (int)(await lsp.CallAsync("workspace/executeCommand", new JObject { ["command"] = "start_debug_server", ["arguments"] = new JArray(rootUri) }))!;
                     var client = new TcpClient { NoDelay = true };
                     await client.ConnectAsync(IPAddress.Loopback, port);
-                    // The production path: launch arguments from KotlinJvmLaunch, frames through KotlinDapSession.
+                    // Frames go through KotlinDapSession, as in Visual Studio.
                     var session = new KotlinDapSession(client.GetStream());
                     var dap = new Peer(session.ReadAsync, message => session.SendAsync(message, CancellationToken.None), lsp: false);
                     await dap.CallAsync("initialize", new JObject { ["clientID"] = "vistudio-hot-reload-test", ["adapterID"] = "intellij_gradle", ["linesStartAt1"] = true, ["columnsStartAt1"] = true, ["pathFormat"] = "path" });
-                    var arguments = KotlinJvmLaunch.Create(project, entry, mainClass, config, tool, "");
-                    arguments["toolArgs"] = new JArray(launchToolArgs);
                     var launch = await dap.RequestAsync("launch", arguments);
                     await dap.WaitAsync(m => (string?)m["event"] == "initialized", 120, "initialized event");
                     await dap.CallAsync("setBreakpoints", Breakpoints(breakpoints));
@@ -250,25 +259,67 @@ internal static class HotReloadDebugProbe
                         catch (Exception e) when (e is ArgumentException || e is InvalidOperationException || e is System.ComponentModel.Win32Exception) { }
                 }
 
-                // 1. Debug session (F5): stop at the breakpoint once, then let the program run. The server waits 30 s for the
-                // JVM; while it still indexes the freshly imported project a launch can miss that, so it is tried again.
-                await Task.Delay(45000);
                 var started = DateTime.UtcNow;
                 Peer dap = null!;
                 TcpClient client = null!;
+                if (cold)
+                {
+                    // What F5 did before the session daemon: a launch without a daemon. Where Gradle needs more than the
+                    // server's 30 s, the session ends without a stop and the JVM Gradle starts afterwards is left waiting
+                    // for a debugger. Informational: on a fast machine this launch simply works.
+                    (dap, client) = await LaunchAsync(new JObject(), new[] { breakLine }, cold: true);
+                    var coldStop = await StoppedAsync(dap, 300);
+                    Console.WriteLine("    INFO launch without a daemon: " + (coldStop != null ? "stopped at the breakpoint" : "no stop") + " after " + (int)(DateTime.UtcNow - started).TotalSeconds + " s");
+                    foreach (var line in dap.Events()) Console.WriteLine("      DAP " + line);
+                    if (coldStop == null)
+                    {
+                        // The client's view of the end, as Visual Studio has it: terminated, then the socket.
+                        client.Dispose();
+                        var leftover = (int?)null;
+                        for (var i = 0; i < 90 && leftover == null; i++) { await Task.Delay(1000); leftover = await FindAsync(started); }
+                        Console.WriteLine("    INFO JVM left behind by the launch without a daemon: " + (leftover == null ? "none within 90 s" : "process " + leftover));
+                        if (leftover != null)
+                        {
+                            GradleSessionDaemon.EndTree(leftover.Value);
+                            await Task.Delay(1000);
+                            check(await FindAsync(started) == null, "Debugger: the JVM a failed attach left waiting is found by its main class and ended");
+                        }
+                    }
+                    else await EndAsync(dap, client);
+                    await EndProgramsAsync();
+                    await Task.Delay(3000);
+                }
+
+                // The Gradle build F5 runs before the launch (Open Folder, a project that is not up to date) goes to the
+                // session's daemon and starts it; the launch below then needs no warm-up of its own.
+                {
+                    var gradle = new List<string>();
+                    var buildStarted = DateTime.UtcNow;
+                    var built = await daemon.RunAsync(GradleCommand.Create(project, "", new[] { "build" }, false, daemon.Registry), line => { lock (gradle) gradle.Add(line); }, line => { lock (gradle) gradle.Add(line); }, CancellationToken.None);
+                    check(built == 0, "Debugger: the build before the launch runs on the session's daemon (exit " + built + ", " + (int)(DateTime.UtcNow - buildStarted).TotalSeconds + " s)" +
+                        (built == 0 ? "" : ": " + string.Join(" | ", gradle.Skip(Math.Max(0, gradle.Count - 8)))));
+                    check(daemon.RunningDaemons().Count == 1, "Debugger: the build left one daemon running in the session's registry (" + daemon.RunningDaemons().Count + ")");
+                }
+
+                // 1. Debug session (F5): stop at the breakpoint once, then let the program run. No waiting after the
+                // import: F5 in Visual Studio launches while the server still indexes, too.
                 (int Thread, string? File, int Line, JObject Frame)? first = null;
                 for (var attempt = 1; attempt <= 3 && first == null; attempt++)
                 {
                     await EndProgramsAsync();
                     started = DateTime.UtcNow;
                     (dap, client) = await LaunchAsync(new JObject(), new[] { breakLine });
+                    var requested = DateTime.UtcNow;
                     first = await StoppedAsync(dap, 300);
+                    Console.WriteLine("    INFO launch attempt " + attempt + ": " + (first != null ? "stopped at the breakpoint " : "the debugger did not attach, ") + (int)(DateTime.UtcNow - requested).TotalSeconds + " s after the launch request");
+                    foreach (var line in dap.Events()) Console.WriteLine("      DAP " + line);
+                    check(attempt > 1 || first != null, "Debugger: the first launch on the session's warm daemon reaches the breakpoint");
                     if (first != null) break;
-                    Console.WriteLine("    INFO launch attempt " + attempt + ": the debugger did not attach (" + (int)(DateTime.UtcNow - started).TotalSeconds + " s)");
                     if (attempt == 3) dap.Dump("DAP");
                     await EndAsync(dap, client);
                     await Task.Delay(5000);
                 }
+                check(daemon.RunningDaemons().Count == 1, "Debugger: the launch runs on the one daemon of the session's registry (" + daemon.RunningDaemons().Count + " running in \"" + daemon.Registry + "\")");
                 using (var session = NewSession("debug work 1"))
                 {
                     check(first != null && first.Value.File == "HotText.kt" && first.Value.Line == breakLine, "Debugger: the session stops at HotText.kt:" + breakLine + ": " + first);
@@ -358,7 +409,17 @@ internal static class HotReloadDebugProbe
                         Console.WriteLine("    INFO JVM prints the dynamic agent warning with vmArgs -XX:+EnableDynamicAgentLoading: " +
                             (await dap.PollAsync(Output("A Java agent has been loaded dynamically"), 3) != null));
                     }
-                    await EndAsync(dap, client);
+                    // 6. The end of a session without a disconnect request (the debugger window closed, Visual Studio
+                    // gone): the program still runs, and ending the session's daemon ends it.
+                    client.Dispose();
+                    var running = await FindAsync(started);
+                    var daemons = daemon.RunningDaemons();
+                    daemon.Dispose();
+                    await Task.Delay(2000);
+                    var alive = daemons.Where(id => HotReloadJvm.StartTimeUtc(id) != null).ToArray();
+                    check(daemons.Count >= 1 && alive.Length == 0, "End of the session: its Gradle daemon is ended (" + daemons.Count + " ran, " + alive.Length + " left)");
+                    check(await FindAsync(started) == null, "End of the session: no JVM of the program is left (process " + running + " ran until then)");
+                    check(!Directory.Exists(daemon.Registry), "End of the session: the daemon registry folder is removed");
                 }
             }
             catch (Exception)
@@ -369,18 +430,7 @@ internal static class HotReloadDebugProbe
             finally
             {
                 await process.StopAsync();
-                // The launch daemons registered themselves as daemon-<pid>.out.log; end the ones still alive.
-                if (Directory.Exists(launchDaemons))
-                {
-                    foreach (var log in Directory.GetFiles(launchDaemons, "daemon-*.out.log", SearchOption.AllDirectories))
-                    {
-                        if (!int.TryParse(Path.GetFileName(log).Split('-', '.')[1], out var id)) continue;
-                        try { using (var daemon = System.Diagnostics.Process.GetProcessById(id)) if (daemon.ProcessName == "java") daemon.Kill(); }
-                        catch (Exception e) when (e is ArgumentException || e is InvalidOperationException || e is System.ComponentModel.Win32Exception) { }
-                    }
-                    await Task.Delay(1000);
-                    try { Directory.Delete(launchDaemons, true); } catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
-                }
+                daemon.Dispose();
             }
         }
         return true;

@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Vistudio.Core.Dart.Preview;
 
 namespace Vistudio.Core.Dart
 {
@@ -28,18 +29,29 @@ namespace Vistudio.Core.Dart
 
     public static class DartToolchain
     {
-        /// <summary>The Dart and Flutter SDKs from the settings, else PATH; null when no dart.exe is found.</summary>
-        public static DartSdk? Find(DartSettings settings) => Find(settings, Environment.GetEnvironmentVariable("PATH"));
+        /// <summary>
+        /// The Dart and Flutter SDKs from the settings, else the Flutter SDK search of <see cref="FlutterSdkLocator"/>
+        /// (FLUTTER_ROOT, PATH, fvm/mise/asdf, standard folders), else dart.exe on PATH; null when no dart.exe is found.
+        /// </summary>
+        public static DartSdk? Find(DartSettings settings) => Find(settings, FlutterSdkEnvironment.Current, null);
 
-        public static DartSdk? Find(DartSettings settings, string? path)
+        /// <summary>PATH-only search (no FLUTTER_ROOT, version managers or standard folders).</summary>
+        public static DartSdk? Find(DartSettings settings, string? path) => Find(settings, FlutterSdkEnvironment.PathOnly(path), null);
+
+        /// <summary>The SDKs for a package: <paramref name="projectFolder"/> lets fvm, mise and asdf project pins choose the Flutter SDK.</summary>
+        public static DartSdk? Find(DartSettings settings, FlutterSdkEnvironment environment, string? projectFolder)
         {
-            var flutter = FindFlutterRoot(settings.FlutterSdkPath, path);
+            var flutter = LocateFlutter(settings, environment, projectFolder).Location?.Root;
             string? dart;
             if (!string.IsNullOrWhiteSpace(settings.DartSdkPath)) dart = DartInSdk(Expand(settings.DartSdkPath));
             else if (flutter != null) dart = DartInSdk(Path.Combine(flutter, "bin", "cache", "dart-sdk"));
-            else dart = FindDartOnPath(path);
+            else dart = FindDartOnPath(environment.Variable("PATH"));
             return dart == null ? null : new DartSdk(dart, flutter);
         }
+
+        /// <summary>The Flutter SDK of the settings and environment, with the place it was found or why none was.</summary>
+        public static FlutterSdkLookup LocateFlutter(DartSettings settings, FlutterSdkEnvironment environment, string? projectFolder) =>
+            FlutterSdkLocator.Locate(settings.FlutterSdkPath, environment, projectFolder);
 
         /// <summary>dart.exe or a message for the user explaining how to configure the SDK.</summary>
         public static DartSdk Require(DartSettings settings)
@@ -55,7 +67,7 @@ namespace Vistudio.Core.Dart
                     ? "The configured Flutter SDK folder has no bin\\flutter.bat: " + settings.FlutterSdkPath
                     : "The Flutter SDK has not downloaded its Dart SDK yet (bin\\cache\\dart-sdk). Run 'flutter --version' once in " + root + ".");
             }
-            return sdk ?? throw new FileNotFoundException("dart.exe was not found on PATH. Set Tools > Options > Dart > Flutter SDK folder or Dart SDK folder.");
+            return sdk ?? throw new FileNotFoundException("No Dart or Flutter SDK was found (searched FLUTTER_ROOT, PATH, fvm, mise, asdf and standard folders). Set Tools > Options > Dart > Flutter SDK folder or Dart SDK folder.");
         }
 
         public static string? FindFlutterRoot(string? configured, string? path)

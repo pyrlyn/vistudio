@@ -32,6 +32,29 @@ namespace Vistudio.Core
         }
         public void Dispose() => handle.Dispose();
 
+        /// <summary>The ids of the processes currently in the job (the started process and all its descendants).</summary>
+        internal int[] ProcessIds()
+        {
+            if (handle.IsClosed || handle.IsInvalid) return Array.Empty<int>();
+            const int capacity = 4096;
+            var size = 8 + IntPtr.Size * capacity;
+            var buffer = Marshal.AllocHGlobal(size);
+            try
+            {
+                // JOBOBJECT_BASIC_PROCESS_ID_LIST: two DWORD counts, then ULONG_PTR ids (aligned to pointer size).
+                if (!QueryInformationJobObject(handle, 3, buffer, (uint)size, IntPtr.Zero)) return Array.Empty<int>();
+                var count = Marshal.ReadInt32(buffer, 4);
+                var ids = new int[count];
+                for (var i = 0; i < count; i++) ids[i] = (int)Marshal.ReadIntPtr(buffer, 8 + i * IntPtr.Size).ToInt64();
+                return ids;
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryInformationJobObject(SafeFileHandle job, int infoClass, IntPtr info, uint length, IntPtr returnLength);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct BasicLimits
         {

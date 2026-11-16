@@ -218,6 +218,41 @@ internal static class DapSessionTests
             check((string?)(await session.ReadAsync(CancellationToken.None))!["event"] == "terminated", "EOF flushes pending termination");
             check(await session.ReadAsync(CancellationToken.None) == null, "EOF after pending termination completes stream");
         }
+
+        // The launch monitor sees the session's traffic: what the Kotlin server sends when its debugger never attached
+        // (the events recorded from the server: "initialized", Gradle's output, then "terminated" alone).
+        using (var pair = await Pair.OpenAsync())
+        {
+            var monitor = new KotlinDebugMonitor();
+            var session = new KotlinDapSession(pair.Client.GetStream(), exitTimeout: TimeSpan.FromMilliseconds(40), monitor: monitor);
+            await session.SendAsync(Request(1, "launch"), CancellationToken.None);
+            await pair.ReceiveAsync();
+            await pair.SendAsync(Event("initialized"));
+            await pair.SendAsync(Event("output", new JObject { ["output"] = "[Run] :" }));
+            await session.ReadAsync(CancellationToken.None);
+            await session.ReadAsync(CancellationToken.None);
+            check(monitor.ProgramMayBeLeft && monitor.Describe("sample.MainKt", false) == null, "Monitored session: a launch that still runs has nothing to report");
+            await pair.SendAsync(Event("terminated"));
+            check((string?)(await session.ReadAsync(CancellationToken.None))!["event"] == "terminated", "Monitored session: termination still reaches the host");
+            // The host answers "terminated" with a disconnect request, as Visual Studio does.
+            await session.SendAsync(Request(2, "disconnect"), CancellationToken.None);
+            var reason = monitor.Describe("sample.MainKt", false);
+            check(reason != null && reason.Contains("sample.MainKt") && monitor.ProgramMayBeLeft, "Monitored session: terminated without an exit code or a stop is reported: " + reason);
+        }
+        using (var pair = await Pair.OpenAsync())
+        {
+            var monitor = new KotlinDebugMonitor();
+            var session = new KotlinDapSession(pair.Client.GetStream(), monitor: monitor);
+            await session.SendAsync(Request(1, "launch"), CancellationToken.None);
+            await pair.ReceiveAsync();
+            await pair.SendAsync(Event("stopped", new JObject { ["reason"] = "breakpoint", ["threadId"] = 6 }));
+            await session.ReadAsync(CancellationToken.None);
+            await pair.SendAsync(Event("exited", new JObject { ["exitCode"] = 0 }));
+            await pair.SendAsync(Event("terminated"));
+            await session.ReadAsync(CancellationToken.None);
+            await session.ReadAsync(CancellationToken.None);
+            check(monitor.Attached && !monitor.ProgramMayBeLeft && monitor.Describe("sample.MainKt", false) == null, "Monitored session: a program that stopped at a breakpoint and exited is not reported");
+        }
     }
 
     private static JObject Request(int seq, string command, JObject? args = null) => new JObject { ["seq"] = seq, ["type"] = "request", ["command"] = command, ["arguments"] = args ?? new JObject() };

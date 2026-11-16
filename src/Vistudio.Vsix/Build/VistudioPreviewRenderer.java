@@ -64,6 +64,32 @@ public final class VistudioPreviewRenderer {
     private static BufferedImage render(String className, String methodName, int widthDp, int heightDp,
                                         boolean showBackground, long background) throws Throwable {
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        Class<?> function2 = Class.forName("kotlin.jvm.functions.Function2", false, loader);
+        Object content = previewContent(loader, className, methodName);
+
+        int width = Math.round((widthDp > 0 ? widthDp : DEFAULT_WIDTH_DP) * SCALE);
+        int height = Math.round((heightDp > 0 ? heightDp : DEFAULT_HEIGHT_DP) * SCALE);
+        Object scene = createScene(loader, width, height, function2, content);
+        BufferedImage image;
+        try {
+            Method render = scene.getClass().getMethod("render", long.class);
+            invoke(render, scene, 0L);
+            // The second frame applies state written by the first composition (for example layout-driven effects).
+            Object skiaImage = invoke(render, scene, 0L);
+            image = toBufferedImage(loader, skiaImage);
+        } finally {
+            try { scene.getClass().getMethod("close").invoke(scene); } catch (Throwable ignored) { }
+        }
+        image = crop(image, widthDp <= 0, heightDp <= 0);
+        if (showBackground) image = fill(image, background == 0 ? 0xFFFFFFFFL : background);
+        return image;
+    }
+
+    /**
+     * The preview function as Compose content: a Function2&lt;Composer, Int, Unit&gt; that calls the static method the
+     * Compose compiler generated for a parameterless top-level @Composable function. Also used by VistudioLivePreviewHost.
+     */
+    static Object previewContent(ClassLoader loader, String className, String methodName) throws Throwable {
         Class<?> composer;
         try {
             composer = Class.forName("androidx.compose.runtime.Composer", false, loader);
@@ -90,7 +116,7 @@ public final class VistudioPreviewRenderer {
         Method target = preview;
         Object unit = Class.forName("kotlin.Unit", true, loader).getField("INSTANCE").get(null);
         Class<?> function2 = Class.forName("kotlin.jvm.functions.Function2", false, loader);
-        Object content = Proxy.newProxyInstance(loader, new Class<?>[] { function2 }, (proxy, method, arguments) -> {
+        return Proxy.newProxyInstance(loader, new Class<?>[] { function2 }, (proxy, method, arguments) -> {
             switch (method.getName()) {
                 case "invoke":
                     try { target.invoke(null, arguments[0], 0); }
@@ -101,34 +127,25 @@ public final class VistudioPreviewRenderer {
                 default: return "VistudioPreview(" + methodName + ")";
             }
         });
-
-        int width = Math.round((widthDp > 0 ? widthDp : DEFAULT_WIDTH_DP) * SCALE);
-        int height = Math.round((heightDp > 0 ? heightDp : DEFAULT_HEIGHT_DP) * SCALE);
-        Object scene = createScene(loader, width, height, function2, content);
-        BufferedImage image;
-        try {
-            Method render = scene.getClass().getMethod("render", long.class);
-            invoke(render, scene, 0L);
-            // The second frame applies state written by the first composition (for example layout-driven effects).
-            Object skiaImage = invoke(render, scene, 0L);
-            image = toBufferedImage(loader, skiaImage);
-        } finally {
-            try { scene.getClass().getMethod("close").invoke(scene); } catch (Throwable ignored) { }
-        }
-        image = crop(image, widthDp <= 0, heightDp <= 0);
-        if (showBackground) image = fill(image, background == 0 ? 0xFFFFFFFFL : background);
-        return image;
     }
 
-    /** Fills the constructor parameters of ImageComposeScene by type; this works across Compose versions with extra defaults. */
     private static Object createScene(ClassLoader loader, int width, int height, Class<?> function2, Object content) throws Throwable {
+        return createScene(loader, width, height, SCALE, null, function2, content);
+    }
+
+    /**
+     * Fills the constructor parameters of ImageComposeScene by type; this works across Compose versions with extra defaults.
+     * A null context runs effects unconfined, which is enough for a single rendered image.
+     */
+    static Object createScene(ClassLoader loader, int width, int height, float scale, Object context, Class<?> function2, Object content) throws Throwable {
         Class<?> sceneType = Class.forName("androidx.compose.ui.ImageComposeScene", true, loader);
         Class<?> densityType = Class.forName("androidx.compose.ui.unit.Density", false, loader);
         Object density = Class.forName("androidx.compose.ui.unit.DensityKt", true, loader)
-            .getMethod("Density", float.class, float.class).invoke(null, SCALE, 1f);
-        Object context;
-        try { context = Class.forName("kotlinx.coroutines.Dispatchers", true, loader).getMethod("getUnconfined").invoke(null); }
-        catch (Throwable unavailable) { context = Class.forName("kotlin.coroutines.EmptyCoroutineContext", true, loader).getField("INSTANCE").get(null); }
+            .getMethod("Density", float.class, float.class).invoke(null, scale, 1f);
+        if (context == null) {
+            try { context = Class.forName("kotlinx.coroutines.Dispatchers", true, loader).getMethod("getUnconfined").invoke(null); }
+            catch (Throwable unavailable) { context = Class.forName("kotlin.coroutines.EmptyCoroutineContext", true, loader).getField("INSTANCE").get(null); }
+        }
         Class<?> contextType = Class.forName("kotlin.coroutines.CoroutineContext", false, loader);
         Constructor<?> best = null;
         Object[] bestArguments = null;
@@ -161,12 +178,12 @@ public final class VistudioPreviewRenderer {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Object enumValue(Class<?> type, String name) { return Enum.valueOf((Class) type, name); }
 
-    private static Object invoke(Method method, Object target, Object... arguments) throws Throwable {
+    static Object invoke(Method method, Object target, Object... arguments) throws Throwable {
         try { return method.invoke(target, arguments); }
         catch (InvocationTargetException e) { throw e.getCause(); }
     }
 
-    private static BufferedImage toBufferedImage(ClassLoader loader, Object skiaImage) throws Throwable {
+    static BufferedImage toBufferedImage(ClassLoader loader, Object skiaImage) throws Throwable {
         Class<?> formatType = Class.forName("org.jetbrains.skia.EncodedImageFormat", true, loader);
         Object pngFormat = enumValue(formatType, "PNG");
         Object data = null;
@@ -230,7 +247,7 @@ public final class VistudioPreviewRenderer {
         return result;
     }
 
-    private static String describe(Throwable failure) {
+    static String describe(Throwable failure) {
         while ((failure instanceof InvocationTargetException || failure instanceof ExceptionInInitializerError) && failure.getCause() != null)
             failure = failure.getCause();
         StringBuilder text = new StringBuilder(failure.getClass().getName());
@@ -240,7 +257,7 @@ public final class VistudioPreviewRenderer {
             String type = frame.getClassName();
             if (type.startsWith("java.") || type.startsWith("jdk.") || type.startsWith("sun.") || type.startsWith("kotlin.")
                 || type.startsWith("androidx.") || type.startsWith("org.jetbrains.skia") || type.startsWith("com.sun.proxy")
-                || type.startsWith("VistudioPreviewRenderer") || type.startsWith("jdk.proxy")) continue;
+                || type.startsWith("VistudioPreviewRenderer") || type.startsWith("VistudioLivePreviewHost") || type.startsWith("jdk.proxy")) continue;
             frames.add("at " + frame);
             if (frames.size() == 5) break;
         }
@@ -254,7 +271,7 @@ public final class VistudioPreviewRenderer {
         return text.toString();
     }
 
-    private static String escape(String value) {
+    static String escape(String value) {
         return value.replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "").replace("\n", "\\n");
     }
 }

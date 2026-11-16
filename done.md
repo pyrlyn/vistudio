@@ -1,5 +1,13 @@
 # Completed work
 
+## T73. Flutter widget preview in Visual Studio
+
+Requested by the creator: live previews of Flutter widgets inside Visual Studio on the official Flutter Widget Previewer (`flutter widget-preview start`, `@Preview`), embedded with WebView2; Flutter project and SDK detection (setting, `FLUTTER_ROOT`, PATH, fvm/mise/asdf, standard folders), Preview CodeLens, context menu and command, a temporary wrapper (or a quick fix) for widgets without `@Preview`, pub get, hot reload on save or after typing, device/theme/text scale/locale configurations side by side with saved choices, clear errors for non-Flutter projects and missing or old SDKs, no processes left behind, unit tests, a live integration test that skips without an SDK, and English only. Later request: end-to-end tests for every feature.
+
+Implemented: `Vistudio.Core/Dart/Preview` (detection, SDK search, scanner, analysis server answers, configurations, quick fix, host project, DTD and LSP clients, previewer session) and `Vistudio.Vsix/Dart/Preview` (service, tool window, CodeLens, light bulb, edit/save tracker), commands in `DartCommands.vsct`, settings in Tools > Options > Dart, `samples/flutter-preview`, `FlutterPreviewTests`, `FlutterPreviewIntegration` (`--flutter-preview`), `tests/verify-flutter-preview.ps1` with `FlutterPreviewAcceptance.cs`. `DartToolchain` now uses the same Flutter SDK search for Run, Debug and tests; `OwnedProcess` no longer throws from its exit handler after disposal and reports the process ids of its job.
+
+Validation performed (details and limitations in [docs/flutter-preview-validation.md](docs/flutter-preview-validation.md)): 138 unit assertions; live with Flutter 3.50.0: 182 assertions (all stages); Visual Studio 18.12 end to end: 50 native checks; the default test run: 1554 assertions. Not automated: clicking the CodeLens (not exposed to UI Automation; rendering checked on screenshots) and the light bulb.
+
 ## T42. Inlay hints for every kind in Kotlin and Java
 
 Requested by the creator ("inline hints for all types"). IntelliJ-style inlay hints in `.kt`/`.kts` and `.java` editors for every kind the language servers provide: Kotlin property, local variable, function return and parameter types, lambda return expressions, implicit `it`/`this`, ranges, `kotlin.time` durations, parameter names (including compiled, context and excluded ones) and call-chain types; Java parameter names, `var` and lambda parameter types and format parameters. All kinds are on by default and each can be turned off in Tools > Options > Kotlin. Done when both servers return every kind on the sample (repeatable probe), unit checks pass, and the hints are visible in a real Visual Studio instance without holding Alt+F1.

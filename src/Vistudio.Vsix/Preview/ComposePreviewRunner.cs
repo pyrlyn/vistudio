@@ -30,8 +30,8 @@ namespace Vistudio.Preview
     /// </summary>
     internal static class ComposePreviewRunner
     {
-        public static async Task<ComposePreviewRun> RenderAsync(KotlinEnvironment environment, string sourceFile, ComposePreviewFile previews,
-            CancellationToken token)
+        /// <summary>The Gradle root of the open folder or project, its JDK setting, and the extension's Build folder.</summary>
+        public static async Task<(string GradleRoot, string JavaHome, string Build)> LocateAsync(KotlinEnvironment environment, CancellationToken token)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
             var root = await environment.GetFolderAsync()
@@ -39,9 +39,15 @@ namespace Vistudio.Preview
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
             var projectFile = environment.ProjectFileFor(root);
             var settings = await Task.Run(() => projectFile != null ? KotlinSettings.LoadForProjectFile(projectFile) : KotlinSettings.LoadForFolder(root), token);
-            var gradleRoot = KotlinEnvironment.ResolveGradleRoot(root, settings.GradleRoot);
+            return (KotlinEnvironment.ResolveGradleRoot(root, settings.GradleRoot), settings.GradleJavaHome,
+                Path.Combine(Path.GetDirectoryName(typeof(ComposePreviewRunner).Assembly.Location)!, "Build"));
+        }
+
+        public static async Task<ComposePreviewRun> RenderAsync(KotlinEnvironment environment, string sourceFile, ComposePreviewFile previews,
+            CancellationToken token)
+        {
+            var (gradleRoot, javaHome, build) = await LocateAsync(environment, token);
             var output = Path.Combine(gradleRoot, "build", "vistudio", "compose-preview", Key(sourceFile));
-            var build = Path.Combine(Path.GetDirectoryName(typeof(ComposePreviewRunner).Assembly.Location)!, "Build");
             await Task.Run(() =>
             {
                 // This directory belongs to the preview of this file only; results of the previous run are replaced.
@@ -50,7 +56,7 @@ namespace Vistudio.Preview
                 foreach (var old in Directory.GetFiles(output, "p*.png").Concat(Directory.GetFiles(output, "*.tsv"))) File.Delete(old);
                 File.WriteAllText(Path.Combine(output, "request.tsv"), previews.CreateRequest(), new UTF8Encoding(false));
             }, token);
-            var start = GradleCommand.CreatePreview(gradleRoot, settings.GradleJavaHome, Path.Combine(build, "ComposePreview.gradle"),
+            var start = GradleCommand.CreatePreview(gradleRoot, javaHome, Path.Combine(build, "ComposePreview.gradle"),
                 Path.Combine(build, "VistudioPreviewRenderer.java"), sourceFile, Path.Combine(output, "request.tsv"), output);
             environment.Log("Compose preview: rendering " + previews.Renderable.Count() + " preview(s) of " + sourceFile + " in " + gradleRoot);
             string? gradleError = null, compileError = null;

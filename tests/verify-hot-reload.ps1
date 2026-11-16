@@ -12,8 +12,8 @@ param(
     [string]$RootSuffix = 'VistudioHotReload',
     [string]$KotlinServer = (Join-Path $env:LOCALAPPDATA 'Vistudio/servers/kotlin-server-271.2085.0/bin/intellij-server.exe'),
     [string]$Tests = (Join-Path $PSScriptRoot 'Vistudio.Tests/bin/Debug/net472/Vistudio.Tests.exe'),
-    # F5 with the breakpoint checks instead of Ctrl+F5. The Kotlin server's debugger waits 30 s for the JVM, which a
-    # cold "--no-daemon" Gradle start misses on a slow machine; without this switch the program runs without a debugger.
+    # F5 with the breakpoint checks instead of Ctrl+F5. The Kotlin server's debugger waits 30 s for the JVM; the launch
+    # runs on the debug session's Gradle daemon to make that. Without this switch the program runs without a debugger.
     [switch]$Debugger,
     [switch]$SkipInstall,
     [switch]$KeepOpen
@@ -145,6 +145,9 @@ try {
     $a.Attach($dte)
     Check (WaitUntil { $dte.Solution.IsOpen -and $dte.Solution.Projects.Count -ge 1 } 180) "Visual Studio opened the Kotlin project from $solutionFile"
     $a.Run([bool]$Debugger)
+    # Stop Debugging ended the session: the program ran on the session's Gradle daemon and ends with it.
+    $projectJvms = { @(Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($solutionFolder) }) }
+    Check (WaitUntil { (& $projectJvms).Count -eq 0 } 30) "No JVM running from the project is left after Stop Debugging ($((& $projectJvms).Count) found)"
 }
 catch {
     Say ("ERROR: " + $_.Exception.Message + ' at ' + $_.InvocationInfo.PositionMessage)

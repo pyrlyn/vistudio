@@ -41,16 +41,20 @@ public sealed class LanguageProjectsAcceptance
     }
 
     /// <summary>Creates a project from a language template into <paramref name="folder"/>; returns its project file.</summary>
-    public string Create(string templateName, string folder, string name, string extension)
+    public string Create(string templateName, string folder, string name, string extension) => Create(templateName, folder, name, name + extension, "VistudioLanguages");
+
+    /// <param name="projectFileName">The created project file's name (the Kotlin templates keep vistudio.kotlinproj).</param>
+    /// <param name="projectType">The template's ProjectType: VistudioLanguages, or Kotlin for the .kotlinproj templates.</param>
+    public string Create(string templateName, string folder, string name, string projectFileName, string projectType)
     {
         var solution = (Solution2)dte.Solution;
         if (!solution.IsOpen) solution.Create(folder, "Acceptance");
-        var template = solution.GetProjectTemplate(templateName + ".zip", "VistudioLanguages");
+        var template = solution.GetProjectTemplate(templateName + ".zip", projectType);
         Check(File.Exists(template), templateName + " is installed as a New Project template (" + template + ")");
         var destination = Path.Combine(folder, name);
         try { solution.AddFromTemplate(template, destination, name, false); }
         catch (Exception e) { say("AddFromTemplate: " + e.Message); }
-        var file = Path.Combine(destination, name + extension);
+        var file = Path.Combine(destination, projectFileName);
         Check(WaitFor(() => File.Exists(file), 60), templateName + " created " + file);
         Check(WaitFor(() => Projects().Any(p => SamePath(p.FullName, file)), 60), name + " is loaded in the solution");
         return file;
@@ -69,6 +73,14 @@ public sealed class LanguageProjectsAcceptance
     }
 
     /// <summary>The Solution Explorer item of a project by caption, expanded.</summary>
+    /// <summary>Captions of the solution's top-level Solution Explorer nodes.</summary>
+    public string[] SolutionChildren()
+    {
+        var solutionNode = Explorer().UIHierarchyItems.Item(1);
+        solutionNode.UIHierarchyItems.Expanded = true;
+        return solutionNode.UIHierarchyItems.Cast<UIHierarchyItem>().Select(i => i.Name).ToArray();
+    }
+
     public UIHierarchyItem ProjectItem(string caption)
     {
         UIHierarchyItem found = null;

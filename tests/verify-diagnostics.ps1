@@ -4,11 +4,17 @@
 # - Dart (Debug Adapter Host engine): the Vistudio Diagnostics window shows the Dart VM session, its samples and the break;
 #   Visual Studio's Diagnostic Tools window is read for its "does not support" text (recorded, not required).
 # - C (native engine): Visual Studio's Diagnostic Tools window is open and does not refuse the engine.
+# - Kotlin (Kotlin/JVM Debug Adapter Host engine, through the Kotlin server and Gradle): Vistudio Diagnostics finds the
+#   program's JVM and shows its CPU, memory and JVM heap. The server path goes into the test solution's .vs\settings.json,
+#   so the global Tools > Options values stay untouched.
 param(
     [string]$Vsix = (Join-Path $PSScriptRoot '../src/Vistudio.Vsix/bin/Debug/net472/Vistudio.Vsix.vsix'),
     [string]$RootSuffix = 'VistudioDiagnostics',
     [string]$FlutterSdk = 'C:/Users/listepo/tools/flutter',
-    [ValidateSet('all', 'dart', 'c')][string[]]$Part = @('all'),
+    [string]$KotlinServer = (Join-Path $env:LOCALAPPDATA 'Vistudio/servers/kotlin-server-271.2085.0/bin/intellij-server.exe'),
+    [ValidateSet('all', 'dart', 'c', 'kotlin')][string[]]$Part = @('all'),
+    # Keep the Kotlin project one folder below the solution (New Project's layout), where F5 currently times out.
+    [switch]$KotlinSubfolder,
     [switch]$SkipInstall,
     [switch]$KeepOpen
 )
@@ -143,6 +149,11 @@ Global
 	EndGlobalSection
 EndGlobal
 "@ | Set-Content -LiteralPath $solutionFile -Encoding UTF8
+if (Want 'kotlin') {
+    Check (Test-Path -LiteralPath $KotlinServer) "Kotlin language server found: $KotlinServer"
+    New-Item -ItemType Directory -Path (Join-Path $solutionFolder '.vs') | Out-Null
+    @{ 'vistudio.kotlin.languageServerPath' = $KotlinServer } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $solutionFolder '.vs/settings.json') -Encoding UTF8
+}
 $process = Start-Process -FilePath $devenv -ArgumentList @('/RootSuffix', $RootSuffix, "`"$solutionFile`"", '/Log', "`"$activityLog`"") -PassThru
 $dte = $null
 for ($i = 0; $i -lt 240 -and -not $dte; $i++) { Start-Sleep -Seconds 1; $dte = [DiagnosticsRot]::FindDte($process.Id) }
@@ -185,6 +196,60 @@ try {
         $ended = WaitUntil { $script:texts = PaneTexts $process.Id 'Vistudio Diagnostics'; ($script:texts -join "`n") -match 'Debugging stopped\.|The program exited\.' } 30
         Say ("Vistudio Diagnostics texts after the session: " + (($script:texts | Select-Object -Unique) -join ' | '))
         Check $ended 'The Vistudio Diagnostics session ended with the debug session and kept its data'
+        $dte.Debugger.Breakpoints | ForEach-Object { $_.Delete() }
+    }
+
+    if (Want 'kotlin') {
+        $file = $a.Create('KotlinConsoleApp', $solutionFolder, 'KotlinApp', 'vistudio.kotlinproj', 'Kotlin')
+        if (-not $KotlinSubfolder) {
+            # Visual Studio passes the solution folder to the Kotlin server as its root, and the server imports only a
+            # Gradle build found there; with the project one folder down (New Project's default) it imports nothing and F5
+            # times out (-KotlinSubfolder reproduces it). This run reopens the project from a solution in its own folder.
+            $projectFolder = Split-Path $file
+            $projectGuid = ([xml](Get-Content -Raw $file)).Project.PropertyGroup.ProjectGuid.Trim('{}').ToUpperInvariant()
+            $tab = "`t"
+            $kotlinSolution = Join-Path $projectFolder 'KotlinApp.sln'
+            @(
+                '', 'Microsoft Visual Studio Solution File, Format Version 12.00', '# Visual Studio Version 18', 'VisualStudioVersion = 18.0.0.0', 'MinimumVisualStudioVersion = 10.0.40219.1',
+                "Project(`"{E7447D71-1121-42DC-8A4D-D3D78B3CC633}`") = `"KotlinApp`", `"vistudio.kotlinproj`", `"{$projectGuid}`"", 'EndProject',
+                'Global', "${tab}GlobalSection(SolutionConfigurationPlatforms) = preSolution", "${tab}${tab}Debug|Any CPU = Debug|Any CPU", "${tab}EndGlobalSection",
+                "${tab}GlobalSection(ProjectConfigurationPlatforms) = postSolution",
+                "${tab}${tab}{$projectGuid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU", "${tab}${tab}{$projectGuid}.Debug|Any CPU.Build.0 = Debug|Any CPU",
+                "${tab}EndGlobalSection", 'EndGlobal'
+            ) | Set-Content -LiteralPath $kotlinSolution -Encoding UTF8
+            New-Item -ItemType Directory -Force -Path (Join-Path $projectFolder '.vs') | Out-Null
+            Copy-Item -LiteralPath (Join-Path $solutionFolder '.vs/settings.json') -Destination (Join-Path $projectFolder '.vs/settings.json')
+            $dte.Solution.Close($false)
+            $dte.Solution.Open($kotlinSolution)
+            Check (WaitUntil { $dte.Solution.IsOpen -and $dte.Solution.Projects.Count -ge 1 } 120) "Reopened the Kotlin project from $kotlinSolution"
+        }
+        # The Kotlin template leaves ProjectName empty, so the caption is not the name given here.
+        $captions = @()
+        $null = WaitUntil { $script:captions = @($a.SolutionChildren()); $script:captions.Count -gt 0 } 60
+        Say ('Solution Explorer projects: ' + ($script:captions -join ', '))
+        $a.SetStartup(($script:captions | Select-Object -First 1))
+        $main = Get-ChildItem (Join-Path (Split-Path $file) 'src/main/kotlin') -Recurse -Filter 'Main.kt' | Select-Object -First 1
+        $line = (Select-String -LiteralPath $main.FullName -Pattern 'println\(' | Select-Object -First 1).LineNumber
+        $null = $dte.Debugger.Breakpoints.Add('', $main.FullName, $line)
+        $started = Get-Date
+        $dte.ExecuteCommand('Debug.Start')
+        # The first F5 loads the Kotlin server, imports the Gradle project and builds it.
+        $stopped = WaitUntil { $dte.Debugger.CurrentMode -eq 2 } 900
+        if (-not $stopped) { foreach ($pane in 'Kotlin', 'Debug') { try { Say ("--- $pane pane:" + [Environment]::NewLine + $a.Pane($pane)) } catch { } } }
+        Check $stopped ("Kotlin F5 stopped at the breakpoint in Main.kt:$line (" + [int]((Get-Date) - $started).TotalSeconds + " s after F5)")
+        Check (WaitUntil { HasElement $process.Id 'Vistudio Diagnostics' } 60) 'The Vistudio Diagnostics window opened with the Kotlin session'
+        ShowWindow @('View.VistudioDiagnostics')
+        $found = WaitUntil { $script:texts = PaneTexts $process.Id 'Vistudio Diagnostics'; $joined = $script:texts -join "`n"; $joined -match '\(JVM, pid \d+\)' -and $joined -match 'JVM heap \d' -and $joined -match 'Private bytes \d' } 90
+        Say ("Vistudio Diagnostics texts: " + (($script:texts | Select-Object -Unique) -join ' | '))
+        if (-not $found) { try { Say ("--- Kotlin pane:" + [Environment]::NewLine + $a.Pane('Kotlin')) } catch { } }
+        Check $found 'Vistudio Diagnostics shows the Kotlin program''s JVM with private bytes and the JVM heap'
+        $dte.Debugger.Go($false)
+        Check (WaitUntil { $dte.Debugger.CurrentMode -eq 1 } 180) 'The Kotlin program ran to the end'
+        ShowWindow @('View.VistudioDiagnostics')
+        $ended = WaitUntil { $script:texts = PaneTexts $process.Id 'Vistudio Diagnostics'; ($script:texts -join "`n") -match 'Debugging stopped\.|The program exited\.' } 30
+        Say ("Vistudio Diagnostics texts after the session: " + (($script:texts | Select-Object -Unique) -join ' | '))
+        Check $ended 'The Vistudio Diagnostics session of the Kotlin program ended with the debug session'
+        try { Say ("--- Kotlin pane:" + [Environment]::NewLine + $a.Pane('Kotlin')) } catch { }
         $dte.Debugger.Breakpoints | ForEach-Object { $_.Delete() }
     }
 

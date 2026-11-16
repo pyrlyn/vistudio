@@ -1,3 +1,5 @@
+using System;
+
 namespace Vistudio.Core.Dart
 {
     /// <summary>
@@ -28,6 +30,25 @@ namespace Vistudio.Core.Dart
         public bool DebugLibraries { get; set; }
         public bool CodeLens { get; set; } = true;
 
+        /// <summary>Flutter widget previews: the Preview CodeLens, the Preview Widget commands and the Flutter Widget Preview window.</summary>
+        public bool WidgetPreview { get; set; } = true;
+        /// <summary>"Preview" CodeLens above <c>@Preview</c> functions and widget classes (needs <see cref="CodeLens"/> too).</summary>
+        public bool WidgetPreviewCodeLens { get; set; } = true;
+        /// <summary>When the previewer reloads: after a save (the previewer watches the files), or also after typing stops (the document is saved after the delay).</summary>
+        public WidgetPreviewReloadTrigger WidgetPreviewReload { get; set; } = WidgetPreviewReloadTrigger.OnSave;
+        /// <summary>Typing pause in milliseconds before an automatic save with <see cref="WidgetPreviewReloadTrigger.AfterDelay"/> (200-10000).</summary>
+        public int WidgetPreviewReloadDelay { get; set; } = 1000;
+        /// <summary>Device size presets, <c>Name=WIDTHxHEIGHT</c> in logical pixels, separated by <c>;</c>.</summary>
+        public string WidgetPreviewDevices { get; set; } = Preview.PreviewConfigurations.DefaultDevices;
+        /// <summary>Text scale factors offered by the preview window, separated by commas.</summary>
+        public string WidgetPreviewTextScales { get; set; } = Preview.PreviewConfigurations.DefaultTextScales;
+        /// <summary>Locales offered by the preview window (BCP 47 tags such as <c>en-US</c>), separated by commas.</summary>
+        public string WidgetPreviewLocales { get; set; } = Preview.PreviewConfigurations.DefaultLocales;
+        /// <summary>Run <c>flutter pub get</c> before starting the previewer when the package's dependencies are not resolved.</summary>
+        public bool WidgetPreviewPubGet { get; set; } = true;
+        /// <summary>Pass <c>--verbose</c> to the previewer and write its trace messages to the Dart Output pane.</summary>
+        public bool WidgetPreviewVerbose { get; set; }
+
         public DartSettings() : base("dart-settings.xml", WorkspaceSettings.DartPrefix) { }
 
         /// <summary>Throws <see cref="ArgumentException"/> for values Tools &gt; Options must reject.</summary>
@@ -38,6 +59,20 @@ namespace Vistudio.Core.Dart
             DartArguments.Split(TestArguments);
             DartArguments.Split(LanguageServerArguments);
             if (FlutterDevice.Length > 0) DartArguments.ValidateDevice(FlutterDevice);
+            if (WidgetPreviewReloadDelay < 200 || WidgetPreviewReloadDelay > 10000)
+                throw new ArgumentException("Widget preview reload delay must be between 200 and 10000 milliseconds.");
+            Preview.PreviewConfigurations.ParseDevices(WidgetPreviewDevices);
+            Preview.PreviewConfigurations.ParseTextScales(WidgetPreviewTextScales);
+            Preview.PreviewConfigurations.ParseLocales(WidgetPreviewLocales);
         }
+    }
+
+    /// <summary>What makes a running widget previewer reload.</summary>
+    public enum WidgetPreviewReloadTrigger
+    {
+        /// <summary>Saving a file (the previewer watches the package on disk).</summary>
+        OnSave,
+        /// <summary>Also after typing stops: Vistudio saves the edited Dart file of a previewed package after the delay.</summary>
+        AfterDelay,
     }
 }

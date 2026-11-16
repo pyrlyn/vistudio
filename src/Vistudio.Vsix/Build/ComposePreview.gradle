@@ -1,4 +1,5 @@
-// Renders Compose @Preview functions of one Kotlin source file through the owning module's JVM (desktop) target.
+// Renders Compose @Preview functions of one Kotlin source file through the owning module's JVM (desktop) target:
+// vistudioComposePreview renders them to PNG files, vistudioComposeLive prepares the interactive host.
 // Inputs come from environment variables set by Vistudio; the explicit root guard keeps buildSrc/included builds out.
 // Lines starting with VISTUDIO_PREVIEW_ERROR report a problem the IDE shows instead of the Gradle failure text.
 gradle.projectsEvaluated {
@@ -41,8 +42,10 @@ gradle.projectsEvaluated {
 
     def rendererSource = new File(required('VISTUDIO_PREVIEW_RENDERER')).canonicalFile
     def rendererClasses = new File(root.layout.buildDirectory.get().asFile, 'vistudio/preview-renderer')
+    // The interactive host shares the renderer's reflective helpers, so both are always compiled together.
+    def hostSource = new File(rendererSource.parentFile, 'VistudioLivePreviewHost.java')
     def compileRenderer = root.tasks.register('vistudioCompilePreviewRenderer6cc1f5c0', JavaCompile) {
-        source = root.files(rendererSource).asFileTree
+        source = root.files(hostSource.isFile() ? [rendererSource, hostSource] : [rendererSource]).asFileTree
         classpath = root.files()
         destinationDirectory.set(rendererClasses)
         options.sourcepath = root.files()
@@ -76,6 +79,48 @@ gradle.projectsEvaluated {
             if (!names.any { it.startsWith('ui-desktop') || it.startsWith('skiko-awt') })
                 fail("The ${compilation.target.name} target of ${owner.path} has no Compose UI for desktop on its runtime classpath. " +
                     'Apply the Compose plugins and add compose.desktop.currentOs to its source set.')
+        }
+    }
+
+    // Interactive preview: compiles the same JVM compilation and the host (VistudioLivePreviewHost.java), then writes
+    // what Vistudio needs to start the host itself. Manifest lines (UTF-8, tab separated):
+    //   J <java executable>      the module's Java toolchain, otherwise Gradle's JVM
+    //   H <host classes>         the compiled renderer and host
+    //   P <library>              class path of the host JVM: everything from the Gradle user home
+    //   R <directory or jar>     reloadable: the module's outputs and whatever else is built in or around the project;
+    //                            the host loads a private copy, so later builds never find these files locked
+    //   M <module path> <target name>
+    root.tasks.register('vistudioComposeLive6cc1f5c0') {
+        if (problem != null) {
+            doFirst { fail(problem) }
+            return
+        }
+        def runtime = compilation.runtimeDependencyFiles
+        def outputs = compilation.output.allOutputs
+        dependsOn(compileRenderer, outputs, runtime)
+        def manifest = new File(required('VISTUDIO_PREVIEW_MANIFEST')).canonicalFile
+        def gradleHome = gradle.gradleUserHomeDir.canonicalFile
+        def java = owner.extensions.findByName('java')
+        def toolchains = owner.extensions.findByName('javaToolchains')
+        def launcher = java != null && toolchains != null && java.toolchain.languageVersion.isPresent() ? toolchains.launcherFor(java.toolchain) : null
+        doLast {
+            def names = runtime.files.collect { it.name }
+            if (!names.any { it.startsWith('ui-desktop') || it.startsWith('skiko-awt') })
+                fail("The ${compilation.target.name} target of ${owner.path} has no Compose UI for desktop on its runtime classpath. " +
+                    'Apply the Compose plugins and add compose.desktop.currentOs to its source set.')
+            def executable = launcher != null ? launcher.get().executablePath.asFile
+                : new File(System.getProperty('java.home'), 'bin/java' + (System.getProperty('os.name').toLowerCase().contains('win') ? '.exe' : ''))
+            def lines = ["J\t${executable.canonicalPath}", "H\t${rendererClasses.canonicalPath}"]
+            def seen = [] as Set
+            (outputs.files + runtime.files).each { file ->
+                def path = file.canonicalFile
+                if (!path.exists() || !seen.add(path)) return
+                lines << ((under(path, gradleHome) ? 'P' : 'R') + '\t' + path.path)
+            }
+            lines << "M\t${owner.path}\t${compilation.target.name}"
+            manifest.parentFile.mkdirs()
+            manifest.setText(lines.join('\n') + '\n', 'UTF-8')
+            println("VISTUDIO_PREVIEW_MODULE\t${owner.path}\t${compilation.target.name}")
         }
     }
 }

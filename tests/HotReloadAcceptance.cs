@@ -231,17 +231,25 @@ public sealed class HotReloadAcceptance
         dte.Debugger.Stop(true);
         Check(WaitFor(() => dte.Debugger.CurrentMode == dbgDebugMode.dbgDesignMode, 60), "Stop Debugging ends the session");
         Check(WaitFor(() => !Command().IsAvailable, 30), "Kotlin.HotReload is unavailable without a running program");
-        Check(WaitFor(() => HotReloadDaemons() == 0, 30), "The session's Gradle daemon ended with it");
-        say("--- Kotlin pane (hot reload lines):\n" + string.Join("\n", Pane("Kotlin").Split('\n').Where(l => l.Contains("Hot reload") || l.StartsWith("  ")).Select(l => l.TrimEnd())));
+        Check(WaitFor(() => SessionDaemons() == 0, 30), "The session's Gradle daemons (launch and hot reload) ended with it");
+        say("--- Kotlin pane (launch and hot reload lines):\n" + string.Join("\n", Pane("Kotlin").Split('\n')
+            .Where(l => l.Contains("Hot reload") || l.Contains("Gradle daemon") || l.Contains("Kotlin debugging") || l.StartsWith("  ")).Select(l => l.TrimEnd())));
     }
 
     /// <summary>
-    /// Gradle daemons of Vistudio's private hot reload registries that still run: each daemon writes
-    /// daemon-&lt;pid&gt;.out.log under %LOCALAPPDATA%\Vistudio\hot-reload\&lt;project&gt;\daemon\&lt;gradle version&gt;.
+    /// Gradle daemons of Vistudio's private registries that still run: the debug session's launch daemon under
+    /// %LOCALAPPDATA%\Vistudio\debug-daemon and the hot reload daemon under %LOCALAPPDATA%\Vistudio\hot-reload. Each
+    /// daemon writes daemon-&lt;pid&gt;.out.log under its registry's &lt;gradle version&gt; folder and keeps it open,
+    /// so a registry folder that could be removed has no daemon.
     /// </summary>
-    private static int HotReloadDaemons()
+    private static int SessionDaemons()
     {
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", "hot-reload");
+        return Daemons("hot-reload") + Daemons("debug-daemon");
+    }
+
+    private static int Daemons(string area)
+    {
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vistudio", area);
         if (!Directory.Exists(folder)) return 0;
         var running = 0;
         foreach (var log in Directory.GetFiles(folder, "daemon-*.out.log", SearchOption.AllDirectories))

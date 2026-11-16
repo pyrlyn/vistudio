@@ -21,6 +21,10 @@
       <Group guid="guidDartCommands" id="DartServiceGroup" priority="0x0300"><Parent guid="guidDartCommands" id="DartMenu" /></Group>
       <Group guid="guidDartCommands" id="DartToolbarGroup" priority="0x0100"><Parent guid="guidDartCommands" id="DartToolbar" /></Group>
       <Group guid="guidDartCommands" id="DartEditorGroup" priority="0x0710"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" /></Group>
+      <Group guid="guidDartCommands" id="DartPreviewGroup" priority="0x0050"><Parent guid="guidDartCommands" id="DartMenu" /></Group>
+      <!-- "Preview Widget" on files: Solution Explorer item nodes (.kotlinproj/.dartproj trees, solutions) and the Open Folder view. -->
+      <Group guid="guidDartCommands" id="DartItemGroup" priority="0x0110"><Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE" /></Group>
+      <Group guid="guidDartCommands" id="DartFolderItemGroup" priority="0x0110"><Parent guid="guidWorkspaceExplorerToolWindowPackageCmdSet" id="idmWSE_ContextMenu" /></Group>
     </Groups>
     <Buttons>
       <Button guid="guidDartCommands" id="Run" priority="0x0100" type="Button">
@@ -105,6 +109,29 @@
         <Icon guid="ImageCatalogGuid" id="Settings" /><CommandFlag>IconIsMoniker</CommandFlag>
         <Strings><ButtonText>Settings...</ButtonText><CommandName>Dart.Settings</CommandName><CanonicalName>.Dart.Settings</CanonicalName><LocCanonicalName>.Dart.Settings</LocCanonicalName></Strings>
       </Button>
+      <Button guid="guidDartCommands" id="PreviewWidget" priority="0x0100" type="Button">
+        <Parent guid="guidDartCommands" id="DartPreviewGroup" />
+        <Icon guid="ImageCatalogGuid" id="PreviewSideBySide" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Flutter: Preview Widget</ButtonText><ToolTipText>Show the widget previews of the active Dart file (or the widget class at the caret) in the Flutter Widget Preview window</ToolTipText><CommandName>Dart.FlutterPreviewWidget</CommandName><CanonicalName>.Dart.FlutterPreviewWidget</CanonicalName><LocCanonicalName>.Dart.FlutterPreviewWidget</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="PreviewWidgetEditor" priority="0x0090" type="Button">
+        <Parent guid="guidDartCommands" id="DartEditorGroup" />
+        <Icon guid="ImageCatalogGuid" id="PreviewSideBySide" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Preview Widget</ButtonText><ToolTipText>Preview the widget at the caret or the file's @Preview declarations</ToolTipText><CommandName>Dart.PreviewWidgetInEditor</CommandName><CanonicalName>.Dart.PreviewWidgetInEditor</CanonicalName><LocCanonicalName>.Dart.PreviewWidgetInEditor</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="PreviewWidgetFile" priority="0x0100" type="Button">
+        <Parent guid="guidDartCommands" id="DartItemGroup" />
+        <Icon guid="ImageCatalogGuid" id="PreviewSideBySide" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag><CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings><ButtonText>Preview Widget</ButtonText><ToolTipText>Show the widget previews of this Dart file</ToolTipText><CommandName>Dart.PreviewWidgetFile</CommandName><CanonicalName>.Dart.PreviewWidgetFile</CanonicalName><LocCanonicalName>.Dart.PreviewWidgetFile</LocCanonicalName></Strings>
+      </Button>
+      <Button guid="guidDartCommands" id="PreviewWindow" priority="0x0110" type="Button">
+        <Parent guid="guidDartCommands" id="DartPreviewGroup" />
+        <Icon guid="ImageCatalogGuid" id="PreviewSideBySide" /><CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Flutter Widget Preview Window</ButtonText><CommandName>Dart.FlutterWidgetPreviewWindow</CommandName><CanonicalName>.Dart.FlutterWidgetPreviewWindow</CanonicalName><LocCanonicalName>.Dart.FlutterWidgetPreviewWindow</LocCanonicalName></Strings>
+      </Button>
     </Buttons>
     <Combos>
       <Combo guid="guidDartCommands" id="DeviceCombo" priority="0x0010" type="DropDownCombo" defaultWidth="160" idCommandList="DeviceComboList">
@@ -125,10 +152,14 @@
     <CommandPlacement guid="guidDartCommands" id="Debug" priority="0x0110"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
     <CommandPlacement guid="guidDartCommands" id="RunTestFile" priority="0x0120"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
     <CommandPlacement guid="guidDartCommands" id="DebugTestFile" priority="0x0130"><Parent guid="guidDartCommands" id="DartEditorGroup" /></CommandPlacement>
+    <CommandPlacement guid="guidDartCommands" id="PreviewWidgetFile" priority="0x0100"><Parent guid="guidDartCommands" id="DartFolderItemGroup" /></CommandPlacement>
   </CommandPlacements>
   <VisibilityConstraints>
     <VisibilityItem guid="guidDartCommands" id="RunTestFile" context="guidDartEditorContext" />
     <VisibilityItem guid="guidDartCommands" id="DebugTestFile" context="guidDartEditorContext" />
+    <VisibilityItem guid="guidDartCommands" id="PreviewWidget" context="guidDartEditorContext" />
+    <VisibilityItem guid="guidDartCommands" id="PreviewWidgetEditor" context="guidDartEditorContext" />
+    <VisibilityItem guid="guidDartCommands" id="PreviewWidgetFile" context="guidDartFileSelectedContext" />
   </VisibilityConstraints>
   <Symbols>
     <GuidSymbol name="guidDartPackage" value="{5e9a1c37-2b4d-4f6e-8a0c-6d8f0b2e4a91}" />
@@ -160,6 +191,19 @@
       <IDSymbol name="Settings" value="0x0125" />
       <IDSymbol name="DeviceCombo" value="0x0130" />
       <IDSymbol name="DeviceComboList" value="0x0131" />
+      <IDSymbol name="DartPreviewGroup" value="0x1006" />
+      <IDSymbol name="DartItemGroup" value="0x1007" />
+      <IDSymbol name="DartFolderItemGroup" value="0x1008" />
+      <IDSymbol name="PreviewWidget" value="0x0140" />
+      <IDSymbol name="PreviewWidgetEditor" value="0x0141" />
+      <IDSymbol name="PreviewWidgetFile" value="0x0142" />
+      <IDSymbol name="PreviewWindow" value="0x0143" />
+    </GuidSymbol>
+    <!-- UI context "a .dart file is selected in a hierarchy" (DartPackage.DartFileSelectedContext). -->
+    <GuidSymbol name="guidDartFileSelectedContext" value="{4c2a8e61-7d3b-4f95-a1e8-2b6f9d0c5e47}" />
+    <!-- Open Folder (Workspace Explorer) context menu of files. -->
+    <GuidSymbol name="guidWorkspaceExplorerToolWindowPackageCmdSet" value="{cfb400f1-5c60-4f3c-856e-180d28def0b7}">
+      <IDSymbol name="idmWSE_ContextMenu" value="0x0002" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

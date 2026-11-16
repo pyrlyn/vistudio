@@ -325,7 +325,8 @@ namespace Vistudio
             service.AddCommand(command);
         }
 
-        internal Task<bool> BuildForDebugAsync(CancellationToken token) => BeginBuildAsync("build", token);
+        /// <param name="daemon">The debug session's Gradle daemon: the build runs on it, so the launch that follows finds it warm.</param>
+        internal Task<bool> BuildForDebugAsync(CancellationToken token, GradleSessionDaemon? daemon = null) => BeginBuildAsync("build", token, null, daemon);
 
         /// <summary>Hot reload command: saves modified documents like a Kotlin build command does (prompts stay with the IDE).</summary>
         internal async Task SaveModifiedDocumentsAsync()
@@ -376,16 +377,16 @@ namespace Vistudio
             return result;
         }
 
-        private async Task<bool> BeginBuildAsync(string operation, CancellationToken token = default, ProjectBuildRequest? request = null)
+        private async Task<bool> BeginBuildAsync(string operation, CancellationToken token = default, ProjectBuildRequest? request = null, GradleSessionDaemon? daemon = null)
         {
             await JoinableTaskFactory.SwitchToMainThreadAsync();
             if (buildCancellation != null) throw new InvalidOperationException("A Gradle build is already running. Wait for it or cancel it before launching.");
             buildCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
-            buildTask = JoinableTaskFactory.RunAsync(() => PrepareAndRunBuildAsync(operation, buildCancellation.Token, request));
+            buildTask = JoinableTaskFactory.RunAsync(() => PrepareAndRunBuildAsync(operation, buildCancellation.Token, request, daemon));
             return await buildTask.JoinAsync();
         }
 
-        private async Task<bool> PrepareAndRunBuildAsync(string operation, CancellationToken token, ProjectBuildRequest? request)
+        private async Task<bool> PrepareAndRunBuildAsync(string operation, CancellationToken token, ProjectBuildRequest? request, GradleSessionDaemon? daemon = null)
         {
             void Log(string line)
             {
@@ -462,7 +463,7 @@ namespace Vistudio
                         finally { owner.ReleaseHandle(); }
                     }
                 }
-                var start = GradleCommand.Create(gradleRoot, settings.GradleJavaHome, tasks, settings.GradleBuildCache);
+                var start = GradleCommand.Create(gradleRoot, settings.GradleJavaHome, tasks, settings.GradleBuildCache, daemon?.Registry);
                 Log("Gradle " + string.Join(" ", tasks) + " in " + start.WorkingDirectory);
                 token.ThrowIfCancellationRequested();
                 await JoinableTaskFactory.SwitchToMainThreadAsync(token);
@@ -474,7 +475,9 @@ namespace Vistudio
                     Log(line);
                     diagnostics.Accept(line);
                 };
-                var code = await OwnedProcess.RunAsync(start, accept, accept, token, request?.Started).ConfigureAwait(false);
+                var code = daemon != null
+                    ? await daemon.RunAsync(start, accept, accept, token, request?.Started).ConfigureAwait(false)
+                    : await OwnedProcess.RunAsync(start, accept, accept, token, request?.Started).ConfigureAwait(false);
                 Log(code == 0 ? "Gradle tasks succeeded." : "Gradle tasks FAILED (exit " + code + "). See output above.");
                 await JoinableTaskFactory.SwitchToMainThreadAsync(token);
                 token.ThrowIfCancellationRequested();

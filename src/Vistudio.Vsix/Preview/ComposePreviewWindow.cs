@@ -40,6 +40,9 @@ namespace Vistudio.Preview
         private string? file;
         private CancellationTokenSource? running;
         private string? pending;
+        private readonly ScrollViewer scroll;
+        // The interactive mode: one preview running in a host JVM, shown instead of the list.
+        private ComposeLiveView? live;
 
         private sealed class Rendered
         {
@@ -60,7 +63,7 @@ namespace Vistudio.Preview
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition());
             Grid.SetRow(status, 1);
-            var scroll = new ScrollViewer { Content = items, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            scroll = new ScrollViewer { Content = items, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             Grid.SetRow(scroll, 2);
             root.Children.Add(toolbar);
             root.Children.Add(status);
@@ -68,8 +71,20 @@ namespace Vistudio.Preview
             root.SetResourceReference(Panel.BackgroundProperty, EnvironmentColors.ToolWindowBackgroundBrushKey);
             root.SetResourceReference(TextElement.ForegroundProperty, EnvironmentColors.ToolWindowTextBrushKey);
             status.Text = "Open a Kotlin file with @Preview functions.";
-            refresh.Click += (_, __) => Run(() => RenderAsync(force: true));
-            cancel.Click += (_, __) => running?.Cancel();
+            // Ids for UI Automation (tests/ComposeLiveAcceptance.cs).
+            System.Windows.Automation.AutomationProperties.SetAutomationId(status, "ComposePreview.Status");
+            System.Windows.Automation.AutomationProperties.SetAutomationId(refresh, "ComposePreview.Refresh");
+            refresh.Click += (_, __) =>
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                if (live?.Active == true)
+                {
+                    if (file != null) SaveIfModified(file);
+                    live.Reload();
+                }
+                else Run(() => RenderAsync(force: true));
+            };
+            cancel.Click += (_, __) => { running?.Cancel(); live?.Cancel(); };
             Content = root;
         }
 
@@ -78,6 +93,11 @@ namespace Vistudio.Preview
             base.OnToolWindowCreated();
             ThreadHelper.ThrowIfNotOnUIThread();
             package = (KotlinPackage)Package;
+            live = new ComposeLiveView(package, text => status.Text = text) { Visibility = Visibility.Collapsed };
+            Grid.SetRow(live, 2);
+            root.Children.Add(live);
+            live.Closed += LeaveLive;
+            package.Environment.WorkspaceChanged += OnWorkspaceChangedAsync;
             if (GetService(typeof(SVsShellMonitorSelection)) is IVsMonitorSelection selection)
             {
                 selection.AdviseSelectionEvents(this, out selectionCookie);
@@ -94,6 +114,8 @@ namespace Vistudio.Preview
             if (disposing)
             {
                 running?.Cancel();
+                live?.Stop();
+                if (package != null) package.Environment.WorkspaceChanged -= OnWorkspaceChangedAsync;
                 if (selectionCookie != 0 && GetService(typeof(SVsShellMonitorSelection)) is IVsMonitorSelection selection) selection.UnadviseSelectionEvents(selectionCookie);
                 if (documentCookie != 0 && GetService(typeof(SVsRunningDocumentTable)) is IVsRunningDocumentTable table) table.UnadviseRunningDocTableEvents(documentCookie);
                 selectionCookie = documentCookie = 0;
@@ -120,11 +142,65 @@ namespace Vistudio.Preview
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     status.Text = "Compose preview: " + e.Message;
-                    package?.Environment.Log("Compose preview: " + e);
-                    ActivityLog.TryLogError("Vistudio.ComposePreview", e.ToString());
+                    // No folder open yet, or Gradle busy: a state the status line reports, not a failure of the extension.
+                    if (e is InvalidOperationException) ActivityLog.TryLogInformation("Vistudio.ComposePreview", e.Message);
+                    else
+                    {
+                        package?.Environment.Log("Compose preview: " + e);
+                        ActivityLog.TryLogError("Vistudio.ComposePreview", e.ToString());
+                    }
                 }
             }).Task.Forget();
 #pragma warning restore VSSDK007
+
+        /// <summary>Replaces the list with the running preview. Gradle compiles the module first; the status line follows it.</summary>
+        private void EnterLive(string path, ComposePreviewFile previews, ComposePreview preview)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (live == null) return;
+            running?.Cancel();
+            scroll.Visibility = Visibility.Collapsed;
+            live.Visibility = Visibility.Visible;
+            cancel.IsEnabled = true;
+            SaveIfModified(path);
+            live.Start(path, previews, preview);
+        }
+
+        /// <summary>Back to the list of the active file's previews; the host and its Gradle daemon are already stopped.</summary>
+        private void LeaveLive()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (live == null) return;
+            live.Visibility = Visibility.Collapsed;
+            scroll.Visibility = Visibility.Visible;
+            cancel.IsEnabled = running != null;
+            if (file != null) Run(() => RenderAsync(force: false));
+            else status.Text = "Open a Kotlin file with @Preview functions.";
+        }
+
+        private async Task OnWorkspaceChangedAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            // Images of another workspace are not this one's; LeaveLive and the line below render the active file again.
+            // This is also what shows the previews when the window was restored before the folder had finished opening.
+            cache.Clear();
+            if (live?.Active == true)
+            {
+                live.Stop();
+                LeaveLive();
+            }
+            else if (file != null && running == null) Run(() => RenderAsync(force: false));
+        }
+
+        /// <summary>
+        /// Keys pressed while the running preview has the keyboard go to it instead of becoming IDE commands; the rest
+        /// (Alt, function keys, Escape, other Ctrl shortcuts) is handled as in every tool window.
+        /// </summary>
+        protected override bool PreProcessMessage(ref System.Windows.Forms.Message m)
+        {
+            if (live != null && live.HasKeyboard && live.HandleKey(m.Msg, m.WParam, m.LParam)) return true;
+            return base.PreProcessMessage(ref m);
+        }
 
         /// <summary>Shows the file's previews (cached images when the file is unchanged) and renders when needed.</summary>
         private void ShowFile(string path, bool saved)
@@ -133,6 +209,8 @@ namespace Vistudio.Preview
             var changed = !string.Equals(path, file, StringComparison.OrdinalIgnoreCase);
             if (!changed && !saved) return;
             file = path;
+            // The running preview stays while other files are opened and edited; the list follows again after Back.
+            if (live?.Active == true) return;
             Run(() => RenderAsync(force: saved));
         }
 
@@ -253,7 +331,22 @@ namespace Vistudio.Preview
                 var line = preview.Line;
                 var source = previews.Path;
                 title.MouseLeftButtonUp += (_, __) => OpenAt(source, line);
-                card.Children.Add(title);
+                if (preview.Unsupported == null)
+                {
+                    // "Interactive" runs the preview: it reacts to the mouse and keyboard and reloads after each save.
+                    var link = new Hyperlink(new Run("Interactive"))
+                        { ToolTip = "Run " + preview.Function + "() in this window: click and type in it; it reloads when a file is saved." };
+                    link.SetResourceReference(TextElement.ForegroundProperty, EnvironmentColors.ControlLinkTextBrushKey);
+                    // One id per annotation: several @Preview on one function are told apart by the preview id.
+                    System.Windows.Automation.AutomationProperties.SetAutomationId(link, "ComposePreview.Interactive." + preview.Function + "." + preview.Id);
+                    var shown = preview;
+                    link.Click += (_, __) => EnterLive(source, previews, shown);
+                    var header = new StackPanel { Orientation = Orientation.Horizontal };
+                    header.Children.Add(title);
+                    header.Children.Add(new TextBlock(link) { Margin = new Thickness(12, 0, 0, 4) });
+                    card.Children.Add(header);
+                }
+                else card.Children.Add(title);
                 ComposePreviewResult? result = null;
                 if (preview.Unsupported != null) card.Children.Add(Note(preview.Unsupported));
                 else if (run == null || run.Error != null || !run.Results.TryGetValue(preview.Id, out result)) card.Children.Add(Note("Not rendered."));
@@ -327,11 +420,16 @@ namespace Vistudio.Preview
         public int OnAfterSave(uint docCookie)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (auto.IsChecked != true || file == null || !Visible) return VSConstants.S_OK;
-            if (GetService(typeof(SVsRunningDocumentTable)) is IVsRunningDocumentTable table
-                && ErrorHandler.Succeeded(table.GetDocumentInfo(docCookie, out _, out _, out _, out var moniker, out _, out _, out _))
-                && string.Equals(moniker, file, StringComparison.OrdinalIgnoreCase))
-                ShowFile(moniker, saved: true);
+            if (auto.IsChecked != true || !Visible) return VSConstants.S_OK;
+            if (!(GetService(typeof(SVsRunningDocumentTable)) is IVsRunningDocumentTable table)
+                || !ErrorHandler.Succeeded(table.GetDocumentInfo(docCookie, out _, out _, out _, out var moniker, out _, out _, out _)) || moniker == null)
+                return VSConstants.S_OK;
+            if (live?.Active == true)
+            {
+                // The running preview can depend on any source of the build, so every saved Kotlin or Java file reloads it.
+                if (moniker.EndsWith(".kt", StringComparison.OrdinalIgnoreCase) || moniker.EndsWith(".java", StringComparison.OrdinalIgnoreCase)) live.Reload();
+            }
+            else if (file != null && string.Equals(moniker, file, StringComparison.OrdinalIgnoreCase)) ShowFile(moniker, saved: true);
             return VSConstants.S_OK;
         }
         public int OnAfterFirstDocumentLock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining) => VSConstants.S_OK;
@@ -347,8 +445,14 @@ namespace Vistudio.Preview
         public int OnShow(int fShow)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if ((fShow == (int)__FRAMESHOW.FRAMESHOW_WinShown || fShow == (int)__FRAMESHOW.FRAMESHOW_TabActivated) && file != null
-                && running == null && !cache.ContainsKey(file))
+            if (fShow == (int)__FRAMESHOW.FRAMESHOW_WinClosed && live?.Active == true)
+            {
+                // A closed window runs nothing: no host JVM and no Gradle daemon are left behind.
+                live.Stop();
+                LeaveLive();
+            }
+            else if ((fShow == (int)__FRAMESHOW.FRAMESHOW_WinShown || fShow == (int)__FRAMESHOW.FRAMESHOW_TabActivated) && file != null
+                && running == null && live?.Active != true && !cache.ContainsKey(file))
                 Run(() => RenderAsync(force: false));
             return VSConstants.S_OK;
         }

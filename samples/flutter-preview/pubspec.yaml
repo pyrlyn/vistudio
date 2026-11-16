@@ -1,0 +1,14 @@
+name: flutter_preview_sample
+description: "Vistudio sample - Flutter widget previews with @Preview and a widget without one."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

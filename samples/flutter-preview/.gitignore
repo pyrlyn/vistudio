@@ -1,0 +1,8 @@
+# Flutter and Dart tool output
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Widget Preview related
+.widget_preview/

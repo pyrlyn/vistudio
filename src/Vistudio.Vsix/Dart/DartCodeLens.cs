@@ -83,7 +83,8 @@ namespace Vistudio.Dart
         private async Task UpdateAllAsync(ITextDocumentSnapshot document, CancellationToken cancellationToken)
         {
             if (!DartCodeElement.IsDart(document.Uri) || !DartSettings.Load().CodeLens) return;
-            var declarations = DartSourceScanner.Scan(document.Text.CopyToString());
+            var text = document.Text.CopyToString();
+            var declarations = DartSourceScanner.Scan(text);
             var identifiers = DartCodeElement.Identifiers(declarations);
             var tags = new List<TaggedTrackingTextRange<CodeLensTag>>();
             for (var i = 0; i < declarations.Count; i++)
@@ -94,6 +95,23 @@ namespace Vistudio.Dart
                 // The range ends at the name: the reference lens queries the server at the name's last character.
                 tags.Add(new TaggedTrackingTextRange<CodeLensTag>(
                     new TextRange(document, declaration.StartOffset, declaration.NameEnd - declaration.StartOffset), TextRangeTrackingMode.ExtendForwardAndBackward, tag));
+            }
+            // Flutter widget previews: one element per @Preview annotation line ("Preview" lens); widget classes reuse their Type element.
+            var path = DartCodeElement.PathOf(new TextRange(document, 0, 0));
+            if (Preview.FlutterPreviewLensData.Enabled(path))
+            {
+                var uri = document.Uri.IsFile ? new Uri(document.Uri.LocalPath).AbsoluteUri : document.Uri.ToString();
+                var targets = await Preview.FlutterPreviewLensData.TargetsAsync(path, uri, text, cancellationToken);
+                var previewIds = CodeLensElement.WithOrdinals(targets.Select(t => Preview.FlutterPreviewLensData.PreviewPrefix + t.Name));
+                for (var i = 0; i < targets.Count; i++)
+                {
+                    var target = targets[i];
+                    var start = Math.Min(target.AnnotationStart, text.Length);
+                    var end = start;
+                    while (end < text.Length && text[end] != '\n' && text[end] != '\r') end++;
+                    var tag = new CodeLensTag(CodeElementKind.KnownValues.Method) { Description = "Preview " + target.Name, UniqueIdentifier = previewIds[i] };
+                    tags.Add(new TaggedTrackingTextRange<CodeLensTag>(new TextRange(document, start, Math.Max(1, end - start)), TextRangeTrackingMode.ExtendForwardAndBackward, tag));
+                }
             }
             await UpdateTagsAsync(new[] { new TextRange(document, 0, document.Length) }, tags, cancellationToken);
         }

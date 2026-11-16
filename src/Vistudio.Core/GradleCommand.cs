@@ -23,11 +23,31 @@ namespace Vistudio.Core
         }
 
         /// <param name="buildCache">Adds --build-cache unless gradle.properties sets org.gradle.caching itself.</param>
-        public static ProcessStartInfo Create(string root, string javaHome, IEnumerable<string> tasks, bool buildCache = false)
+        /// <param name="daemonRegistry">
+        /// The registry of a debug session's daemon (<see cref="GradleSessionDaemon"/>): the build before a debug launch
+        /// runs on it, so the launch that follows finds a warm daemon. Null for every other build: no daemon.
+        /// </param>
+        public static ProcessStartInfo Create(string root, string javaHome, IEnumerable<string> tasks, bool buildCache = false, string? daemonRegistry = null)
         {
             var selected = string.Join(" ", ParseTasks(string.Join(" ", tasks)));
             var cache = buildCache && Languages.BuildCache.GradleProperty(Path.GetFullPath(root), "org.gradle.caching") == null ? "--build-cache " : "";
-            return CreateCore(root, javaHome, cache + selected);
+            return daemonRegistry == null
+                ? CreateCore(root, javaHome, cache + selected)
+                : CreateCore(root, javaHome, SessionDaemon(daemonRegistry) + cache + selected, daemon: true);
+        }
+
+        /// <summary>
+        /// Starts a debug session's daemon and configures the build in it (Gradle's <c>help</c> task), so the Gradle
+        /// client the Kotlin server starts for the launch reaches the program within the server's 30 s attach limit.
+        /// </summary>
+        public static ProcessStartInfo CreateDaemonWarmUp(string root, string javaHome, string daemonRegistry) =>
+            CreateCore(root, javaHome, SessionDaemon(daemonRegistry) + "help", daemon: true);
+
+        private static string SessionDaemon(string daemonRegistry)
+        {
+            daemonRegistry = Path.GetFullPath(daemonRegistry);
+            if (Regex.IsMatch(daemonRegistry, "[\"%!\r\n]")) throw new ArgumentException("The daemon registry path contains shell expansion characters.");
+            return "\"-Dorg.gradle.daemon.registry.base=" + daemonRegistry + "\" -Dorg.gradle.daemon.idletimeout=" + GradleSessionDaemon.IdleTimeoutMilliseconds + " ";
         }
 
         public const string DiscoveryTask = "vistudioDiscoverTasks6cc1f5c0";
@@ -55,6 +75,33 @@ namespace Vistudio.Core
             start.EnvironmentVariables["VISTUDIO_PREVIEW_RENDERER"] = Path.GetFullPath(renderer);
             start.EnvironmentVariables["VISTUDIO_PREVIEW_REQUEST"] = Path.GetFullPath(request);
             start.EnvironmentVariables["VISTUDIO_PREVIEW_OUTPUT"] = Path.GetFullPath(output);
+            return start;
+        }
+
+        public const string LivePreviewTask = ":vistudioComposeLive6cc1f5c0";
+
+        /// <summary>
+        /// Compiles the JVM target that owns <paramref name="sourceFile"/> and the interactive preview host, and writes
+        /// the host's class path to <paramref name="manifest"/> (ComposePreview.gradle). Every save of a previewed file
+        /// runs this, so like hot reload it uses a daemon of its own: registered under
+        /// <paramref name="daemonRegistry"/>, gone after ten idle minutes, ended by the caller with the preview.
+        /// </summary>
+        public static ProcessStartInfo CreateLivePreview(string root, string javaHome, string script, string renderer, string sourceFile, string manifest, string daemonRegistry)
+        {
+            if (!File.Exists(renderer)) throw new FileNotFoundException("The Compose preview renderer is missing.", renderer);
+            if (!File.Exists(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(renderer))!, "VistudioLivePreviewHost.java")))
+                throw new FileNotFoundException("The Compose live preview host is missing next to the renderer.", renderer);
+            script = Path.GetFullPath(script);
+            if (!File.Exists(script)) throw new FileNotFoundException("Gradle init script is missing.", script);
+            daemonRegistry = Path.GetFullPath(daemonRegistry);
+            if (Regex.IsMatch(script, "[\"%!\r\n]") || Regex.IsMatch(daemonRegistry, "[\"%!\r\n]"))
+                throw new ArgumentException("The init script or daemon registry path contains shell expansion characters.");
+            var start = CreateCore(root, javaHome, "\"-Dorg.gradle.daemon.registry.base=" + daemonRegistry + "\" -Dorg.gradle.daemon.idletimeout=600000 " +
+                "--no-configuration-cache --no-configure-on-demand --init-script \"" + script + "\" " + LivePreviewTask, daemon: true);
+            start.EnvironmentVariables["VISTUDIO_PREVIEW_ROOT"] = Path.GetFullPath(root);
+            start.EnvironmentVariables["VISTUDIO_PREVIEW_FILE"] = Path.GetFullPath(sourceFile);
+            start.EnvironmentVariables["VISTUDIO_PREVIEW_RENDERER"] = Path.GetFullPath(renderer);
+            start.EnvironmentVariables["VISTUDIO_PREVIEW_MANIFEST"] = Path.GetFullPath(manifest);
             return start;
         }
 

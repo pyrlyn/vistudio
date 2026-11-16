@@ -62,7 +62,7 @@ The enclosing-owner fallback uses the same server's standard `documentSymbol`, `
 
 The New Project templates (`Vistudio.Core/Templates`) generate Gradle projects with exactly the versions above (Gradle 8.14.7 wrapper copied from `samples/kotlin-jvm`, Kotlin 2.4.21, Compose Multiplatform 1.12.2); they add no extension dependency. The `.vstemplate` zips are built by MSBuild's `ZipDirectory` task, and the template engine's DTE `Project` contract comes from the EnvDTE reference already in the SDK package.
 
-The Compose preview renderer (`Build/VistudioPreviewRenderer.java`) is compiled by the user's Gradle build with the JDK it already uses and calls Compose reflectively; the extension adds no Compose, Skia or JVM dependency.
+The Compose preview renderer (`Build/VistudioPreviewRenderer.java`) and the interactive preview host (`Build/VistudioLivePreviewHost.java`) are compiled by the user's Gradle build with the JDK it already uses and call Compose reflectively; the extension adds no Compose, Skia or JVM dependency. The host runs on the module's Java toolchain when it declares one, otherwise on the JVM that runs Gradle.
 
 Kotlin/JVM hot reload (T72) adds no package or bundled program: the reload agent (`Build/VistudioHotReloadAgent.java`) uses only the JDK (`java.lang.instrument`, and `jdk.attach` by reflection), is compiled and packed by the user's Gradle build (`Build/HotReload.gradle`, release 11) and is loaded into the program with the `java.exe` next to the program's own JVM; `jps` from the same JDK finds that JVM. Tested with Eclipse Temurin 21.0.12, Gradle 8.14.7 and Kotlin 2.4.21. Its Gradle runs are the only ones on a daemon (private registry under `%LOCALAPPDATA%\Vistudio\hot-reload`, ended with the debug session).
 

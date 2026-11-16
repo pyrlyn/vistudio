@@ -42,7 +42,13 @@ namespace Vistudio
         }
 
         /// <param name="buildTool">Result of <c>intellij.java.buildTool</c> for the source file: <c>{ tool, env }</c>.</param>
-        internal static JObject Create(string workspace, string source, string mainClass, JObject config, JObject? buildTool, string? gradleJavaHome)
+        /// <param name="daemonArguments">
+        /// Gradle arguments that send the server's Gradle client to the debug session's daemon
+        /// (<c>GradleSessionDaemon.ClientArguments</c>). The server's debugger gives the JVM 30 s from the launch request,
+        /// which a client that first starts a JVM for the build can miss. Null: a run without a daemon.
+        /// </param>
+        internal static JObject Create(string workspace, string source, string mainClass, JObject config, JObject? buildTool, string? gradleJavaHome,
+            System.Collections.Generic.IEnumerable<string>? daemonArguments = null)
         {
             if (!IsSourceFile(source)) throw new InvalidOperationException("The debug entry file must be a .kt or .java source file.");
             var tool = (string?)buildTool?["tool"];
@@ -54,7 +60,7 @@ namespace Vistudio
                 ["type"] = "intellij_gradle", ["tool"] = "gradle", ["request"] = "launch", ["name"] = mainClass,
                 ["mainClass"] = mainClass, ["file"] = source, ["console"] = "internalConsole",
                 ["cwd"] = Path.GetFullPath(Path.Combine(workspace, (string?)config["cwd"] ?? ".")),
-                ["toolArgs"] = new JArray("--no-daemon", "--console=plain")
+                ["toolArgs"] = daemonArguments == null ? new JArray("--no-daemon", "--console=plain") : new JArray(System.Linq.Enumerable.Concat(daemonArguments, new[] { "--console=plain" }))
             };
             if (config["gradleProject"]?.Type == JTokenType.String) launch["projectPath"] = config["gradleProject"]!.DeepClone();
             if (config["sourceSet"]?.Type == JTokenType.String) launch["sourceSet"] = config["sourceSet"]!.DeepClone();
@@ -67,6 +73,16 @@ namespace Vistudio
                 foreach (var property in custom.Properties()) env[property.Name] = property.Value.DeepClone();
             if (env.Count != 0) launch["env"] = env;
             return launch;
+        }
+
+        /// <summary>The environment variables a launch gives the Gradle client (the session's daemon is warmed up with the same).</summary>
+        internal static System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>> EnvironmentOf(JObject launch)
+        {
+            var variables = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+            if (launch["env"] is JObject env)
+                foreach (var property in env.Properties())
+                    if (property.Value is JToken value && value.Type != JTokenType.Null) variables.Add(new System.Collections.Generic.KeyValuePair<string, string>(property.Name, (string?)value ?? ""));
+            return variables;
         }
     }
 }

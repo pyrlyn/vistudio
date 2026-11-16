@@ -15,22 +15,23 @@ namespace Vistudio
         private readonly TcpClient client;
         private readonly Action release;
         private int exited;
-        private KotlinDebugTransport(TcpClient client, Action release)
+        private KotlinDebugTransport(TcpClient client, Action release, KotlinDebugMonitor? monitor)
         {
             this.client = client;
             this.release = release;
-            var session = new KotlinDapSession(client.GetStream());
+            var session = new KotlinDapSession(client.GetStream(), monitor: monitor);
             StandardInput = new KotlinDapInputStream(session, Terminate);
             StandardOutput = new KotlinDapSourceStream(session.ReadAsync, Terminate);
         }
-        internal static async Task<KotlinDebugTransport> ConnectAsync(int port, Action release, CancellationToken token)
+        /// <param name="monitor">Told what this connection sees of the launch (did the debugger attach, how did the session end).</param>
+        internal static async Task<KotlinDebugTransport> ConnectAsync(int port, Action release, CancellationToken token, KotlinDebugMonitor? monitor = null)
         {
             if (port < 1 || port > 65535) throw new InvalidOperationException("Kotlin server returned an invalid DAP port.");
             var client = new TcpClient { NoDelay = true };
             try
             {
                 await client.ConnectAsync(IPAddress.Loopback, port).WithCancellation(token).ConfigureAwait(false);
-                return new KotlinDebugTransport(client, release);
+                return new KotlinDebugTransport(client, release, monitor);
             }
             catch { client.Dispose(); throw; }
         }

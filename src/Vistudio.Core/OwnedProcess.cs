@@ -20,6 +20,8 @@ namespace Vistudio.Core
         public StreamReader Error => process.StandardError;
         public Task<int> Exit => exited.Task;
         public int Id => process.Id;
+        /// <summary>The ids of this process and every descendant still running (members of its job object).</summary>
+        public int[] TreeProcessIds() => disposed ? Array.Empty<int>() : job.ProcessIds();
 
         public OwnedProcess(ProcessStartInfo start) : this(start, null) { }
 
@@ -28,7 +30,13 @@ namespace Vistudio.Core
             ownsJob = sharedJob == null;
             job = sharedJob ?? new ProcessJob();
             process = new Process { StartInfo = start, EnableRaisingEvents = true };
-            process.Exited += (_, __) => exited.TrySetResult(process.ExitCode);
+            // Exited runs on the thread pool and can arrive after Dispose (StopAsync returns once the job ended the tree);
+            // reading ExitCode then throws, and an exception there would end the host process.
+            process.Exited += (_, __) =>
+            {
+                try { exited.TrySetResult(process.ExitCode); }
+                catch (InvalidOperationException) { exited.TrySetResult(-1); }
+            };
             try
             {
                 if (!process.Start()) throw new InvalidOperationException("Could not start " + start.FileName);

@@ -95,6 +95,30 @@ namespace Vistudio.Core.Dart
             arguments.Add(plainName!);
         }
 
+        /// <summary><c>dart tooling-daemon --machine</c>: prints <c>{"tooling_daemon_details":{"uri":...}}</c> and serves DTD on a local port.</summary>
+        public static ProcessStartInfo ToolingDaemon(DartSdk sdk, string directory) => Dart(sdk, new[] { "tooling-daemon", "--machine" }, directory);
+
+        /// <summary>
+        /// The analysis server that serves the widget previewer through DTD (the same options <c>flutter widget-preview</c>
+        /// uses for its own server): completion and search are off, it only analyzes and reports previews.
+        /// </summary>
+        public static ProcessStartInfo PreviewAnalysisServer(DartSdk sdk, string directory) => Dart(sdk, new[]
+        {
+            "language-server", "--protocol=lsp", "--client-id=" + ClientId + ".widget-preview", "--client-version=" + ClientVersion,
+            "--disable-server-feature-completion", "--disable-server-feature-search", "--suppress-analytics",
+        }, directory);
+
+        /// <summary>
+        /// <c>flutter widget-preview start --machine --web-server --dtd-url=...</c>: the official widget previewer, served
+        /// over HTTP for embedding (no browser launch), using Vistudio's DTD (the Editor service, the analysis server).
+        /// </summary>
+        public static ProcessStartInfo WidgetPreviewStart(DartSdk sdk, string projectRoot, string dtdUrl, bool verbose)
+        {
+            var arguments = new List<string> { "widget-preview", "start", "--machine", "--web-server", "--dtd-url=" + dtdUrl };
+            if (verbose) arguments.Add("--verbose");
+            return Flutter(sdk, arguments, projectRoot);
+        }
+
         /// <summary><c>flutter devices --machine</c>: JSON array of connected devices.</summary>
         public static ProcessStartInfo Devices(DartSdk sdk, string directory) => Flutter(sdk, new[] { "devices", "--machine" }, directory);
 

@@ -14,6 +14,7 @@ namespace Vistudio
     internal sealed class KotlinDapSession
     {
         private readonly Stream backend;
+        private readonly KotlinDebugMonitor? monitor;
         private readonly SemaphoreSlim writeGate = new SemaphoreSlim(1, 1);
         private readonly object sync = new object();
         private readonly Dictionary<int, Pending> requests = new Dictionary<int, Pending>();
@@ -28,9 +29,10 @@ namespace Vistudio
         private Task? exitDeadline;
         private Task<JObject?>? reading;
 
-        internal KotlinDapSession(Stream backend, TimeSpan? valueTimeout = null, TimeSpan? exitTimeout = null)
+        internal KotlinDapSession(Stream backend, TimeSpan? valueTimeout = null, TimeSpan? exitTimeout = null, KotlinDebugMonitor? monitor = null)
         {
             this.backend = backend;
+            this.monitor = monitor;
             this.valueTimeout = valueTimeout ?? TimeSpan.FromSeconds(2);
             this.exitTimeout = exitTimeout ?? TimeSpan.FromSeconds(5);
         }
@@ -38,6 +40,7 @@ namespace Vistudio
         internal async Task SendAsync(JObject message, CancellationToken token)
         {
             Pending? pending = null;
+            monitor?.Sent(message);
             if ((string?)message["type"] == "request")
             {
                 var command = (string?)message["command"];
@@ -113,6 +116,7 @@ namespace Vistudio
                 var message = await reading.ConfigureAwait(false);
                 reading = null;
                 if (message == null) return terminated == null ? null : EmitTermination();
+                monitor?.Received(message);
                 var kind = (string?)message["type"];
                 if (kind == "event")
                 {

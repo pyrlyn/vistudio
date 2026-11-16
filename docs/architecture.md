@@ -10,7 +10,9 @@ The implementation reuses the official Kotlin server 263.7084.0 DAP backend inst
 | --- | --- |
 | `KotlinLaunchConfigurationProvider` | `ILaunchConfigurationProvider`, schema/defaults for `.vs/launch.vs.json` |
 | `KotlinLaunchProvider` | `ILaunchDebugTargetProvider5`, native Open Folder F5/Ctrl+F5 routing |
-| `KotlinDebugCoordinator` | Save/build gate, Gradle launch-model resolution, `IVsDebugger4.LaunchDebugTargets4` |
+| `KotlinDebugCoordinator` | Save/build gate, Gradle launch-model resolution, the session's Gradle daemon (build and warm-up before the launch, ended with the session), `IVsDebugger4.LaunchDebugTargets4`, the message and JVM cleanup when a session ends unattached |
+| `GradleSessionDaemon` (Core) | One per launch: a Gradle daemon in a registry of its own and in a process job owned by the session, because the Kotlin server's debugger waits only 30 s for the JVM. `ClientArguments` go into the launch's `toolArgs`; disposing it ends the daemon, the program it started and the registry folder |
+| `KotlinDebugMonitor` | What the session's DAP traffic says about the launch (launch request, stops, exit code, `terminated`), fed by `KotlinDapSession` and found by the id in the launch JSON; gives the reason shown when the debugger never attached |
 | `KotlinDebugLifecycle` | `IVsDebuggerEvents`, retain the shared server until the debugger returns to design mode |
 | `KotlinLanguageClient.ImportNotifications` | Custom LSP import completion notifications; `ILanguageClientCustomMessage2` exposes the host's existing `JsonRpc` connection |
 | `KotlinAdapterLauncher` | `IAdapterLauncher`, create a loopback DAP transport when Debug Adapter Host starts asynchronously |
@@ -76,7 +78,11 @@ F5 first runs the existing Gradle build/diagnostics pipeline and proceeds only o
 | `Build/ComposePreview.gradle` | Picks the project owning the file and the JVM target whose main compilation contains it, compiles the renderer, runs it on that compilation's outputs and runtime classpath |
 | `Build/VistudioPreviewRenderer.java` | JDK-only renderer in its own JVM: reflective `ImageComposeScene` construction, composable invocation through a `Function2` proxy, Skia PNG encoding, cropping, background, per-preview errors |
 | `ComposePreviewRunner` | Settings and Gradle root resolution, output folder, process run, failure summary |
-| `ComposePreviewWindow` | `ToolWindowPane`; follows `SEID_DocumentFrame`, re-renders on `OnAfterSave`, shares the package's Gradle gate (`RunExclusiveGradleAsync`) |
+| `ComposePreviewWindow` | `ToolWindowPane`; follows `SEID_DocumentFrame`, re-renders on `OnAfterSave`, shares the package's Gradle gate (`RunExclusiveGradleAsync`); hosts the interactive view and passes it key messages (`PreProcessMessage`) |
+| `GradleCommand.CreateLivePreview` (Core) | The script's `vistudioComposeLive` task with a daemon of its own (registry in the session folder) |
+| `Build/VistudioLivePreviewHost.java` | JDK-only host JVM of one interactive preview: `ImageComposeScene` on a scene thread that also runs the preview's coroutines, frames (BGRA) on standard output, commands (`load`, `show`, `pointer`, `key`, `ack`) on standard input; project classes in a child class loader over a private copy, replaced on `load` |
+| `ComposeLiveManifest`, `ComposeLiveProtocol`, `ComposeLiveSession` (Core) | What Gradle wrote for the host (JVM, libraries, reloadable outputs), the command and message formats (Windows key to AWT key mapping, which keys the preview takes), and the session that owns the daemon job and the host process |
+| `ComposeLiveView` | WPF view of the running preview: `WriteableBitmap` frames with acknowledgement (a hidden window takes none), pointer mapping to frame pixels, typed characters from `ToUnicodeEx`, reload after save |
 
 The IDE never loads Compose: the user's Gradle build compiles the module and the renderer uses the module's own Compose and Skia versions. Reflection uses only stable shapes (the `(Composer, int)` signature of a parameterless composable, `ImageComposeScene` constructors matched by parameter type, Kotlin's `encodeToData$default` bridge), so no Compose version is pinned by the extension.
 
@@ -84,7 +90,7 @@ The IDE never loads Compose: the user's Gradle build compiles the module and the
 
 | Class / file | Responsibility |
 | --- | --- |
-| `GradleCommand.CreateHotReload` (Core) | Fixed init-script task with paths in environment variables; the only Gradle run on a daemon (private registry, ten-minute idle timeout) |
+| `GradleCommand.CreateHotReload` (Core) | Fixed init-script task with paths in environment variables; runs on a daemon of its own (private registry, ten-minute idle timeout), apart from the debug session's launch daemon, which is busy running the program |
 | `Build/HotReload.gradle` | Picks the project owning the program's entry file, depends on the `classes` tasks of its main JVM compilations, lists the class files of every JVM class output before the task graph runs and after, compiles and packs the agent |
 | `Build/VistudioHotReloadAgent.java` | JDK-only. `main`: attach client (`VirtualMachine.loadAgent`, by reflection). `agentmain`: reads the request, redefines the loaded classes in one step, class by class when the JVM refuses the set, writes one result line per class |
 | `HotReloadSnapshot`, `HotReloadState`, `HotReloadResult` (Core) | Class lists, what the JVM is known to run (length, time, hash per class file; refused classes stay pending), agent result and the text shown to the user |

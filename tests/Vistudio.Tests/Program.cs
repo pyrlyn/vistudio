@@ -26,6 +26,7 @@ internal static class Program
         if (args.Length == 4 && args[0] == "--gradle-import") return await GradleImportIntegration.RunAsync(args[1], args[2], args[3]);
         if (args.Length == 4 && args[0] == "--multiplatform") return await MultiplatformIntegration.RunAsync(args[1], args[2], args[3]);
         if (args.Length == 4 && args[0] == "--compose-preview") return await ComposePreviewTests.RunIntegrationAsync(args[1], args[2], args[3]);
+        if (args.Length == 4 && args[0] == "--compose-live") return await ComposeLivePreviewTests.RunLiveAsync(args[1], args[2], args[3]);
         if (args.Length == 4 && args[0] == "--kotlin-targets") return await KotlinTargetsIntegration.RunAsync(args[1], args[2], args[3]);
         if (args.Length == 3 && args[0] == "--templates") return TemplateTests.Generate(args[1], args[2]);
         if (args.Length == 2 && args[0] == "--etw-emit") return EtwTests.Emit(int.Parse(args[1]));
@@ -108,6 +109,30 @@ internal static class Program
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Dart" + (live ? ", live SDK" : "") + ").");
                 return failures.Count == 0 ? 0 : 1;
             }
+            if (args.Length >= 1 && args[0] == "--flutter-preview")
+            {
+                // Flutter widget preview: unit checks, then the live previewer on samples/flutter-preview (skipped with a
+                // message when no Flutter 3.35+ SDK or browser is found). Optional second argument: "none" for unit checks
+                // only, or comma-separated live stages (dtd, preview, host, cancel, twopages); default all.
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) =>
+                {
+                    assertions++;
+                    if (!condition) failures.Add(message);
+                    Console.WriteLine((condition ? "  ok   " : "  FAIL ") + (message.Length > 300 ? message.Substring(0, 300) + "..." : message));
+                };
+                FlutterPreviewTests.Run(root, collect);
+                var stages = args.Length > 1 ? args[1] : "all";
+                var live = false;
+                if (stages != "none")
+                {
+                    try { live = await FlutterPreviewIntegration.RunAsync(root, collect, stages); }
+                    catch (Exception e) { failures.Add("Live widget preview checks stopped: " + e); }
+                }
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Flutter widget preview" + (live ? ", live SDK" : ", live part skipped") + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--mise")
             {
                 // Reports every failing mise check; the live part runs against the installed mise.exe when one is found.
@@ -182,7 +207,9 @@ internal static class Program
                 // Kotlin/JVM hot reload (T72). The live part starts a Kotlin + Java program with the Gradle wrapper of a copy
                 // of samples/kotlin-jvm and reloads it (needs a JDK; several minutes). "--hot-reload none" runs the unit checks
                 // only; "--hot-reload debugger" instead runs the program under the installed Kotlin server's debugger (F5 and
-                // Ctrl+F5 launches, a reload at a breakpoint); "--hot-reload all" runs both live parts.
+                // Ctrl+F5 launches on the session's Gradle daemon, a reload at a breakpoint, the end of the session);
+                // "--hot-reload debugger-cold" first tries a launch without a daemon and reports how it ends;
+                // "--hot-reload all" runs both live parts.
                 var failures = new System.Collections.Generic.List<string>();
                 Action<bool, string> collect = (condition, message) =>
                 {
@@ -198,9 +225,9 @@ internal static class Program
                     try { if (await HotReloadTests.RunLiveAsync(root, collect)) live.Add("Gradle and JVM"); }
                     catch (Exception e) { failures.Add("Live hot reload checks stopped: " + e); }
                 }
-                if (stage == "debugger" || stage == "all")
+                if (stage == "debugger" || stage == "debugger-cold" || stage == "all")
                 {
-                    try { if (await HotReloadDebugProbe.RunAsync(root, collect)) live.Add("Kotlin server debugger"); }
+                    try { if (await HotReloadDebugProbe.RunAsync(root, collect, cold: stage == "debugger-cold")) live.Add("Kotlin server debugger"); }
                     catch (Exception e) { failures.Add("Hot reload checks under the debugger stopped: " + e); }
                 }
                 foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
@@ -226,11 +253,13 @@ internal static class Program
             await InlayHintTests.RunAsync(Check);
             KotlinSystemPathTests.Run(Path.Combine(root, "system-path"), Check);
             ComposePreviewTests.Run(Check);
+            ComposeLivePreviewTests.Run(Check);
             CodeLensTests.Run(Check);
             CodeLensKindsTests.Run(Check, root);
             StructureTests.Run(Check);
             ZigTests.Run(root, Check);
             DartTests.Run(root, Check);
+            FlutterPreviewTests.Run(root, Check);
             MiseTests.Run(root, Check);
             BazelTests.Run(Path.Combine(root, "bazel"), Check);
             HotReloadTests.Run(Path.Combine(root, "hot-reload"), Check);

@@ -266,6 +266,12 @@ namespace Vistudio
                 if (!(window?.Frame is IVsWindowFrame frame)) throw new InvalidOperationException("Cannot open the Compose preview window.");
                 ErrorHandler.ThrowOnFailure(frame.Show());
             });
+            // Hot Reload: available while a Kotlin/JVM program started with F5 or Ctrl+F5 runs.
+            var hotReload = components.GetService<KotlinHotReload>();
+            var reload = new OleMenuCommand((_, __) => JoinableTaskFactory.RunAsync(() => hotReload.ReloadAsync(fromSave: false)).FileAndForget("Vistudio/Kotlin/HotReload"),
+                new CommandID(Commands, 0x10B));
+            reload.BeforeQueryStatus += (_, __) => reload.Enabled = hotReload.IsActive;
+            commands.AddCommand(reload);
             // Solution Explorer project context menu: visible only for Kotlin projects, acting on the selected project.
             AddProjectCommand(commands, 0x200, () => RunForSelectedAsync("import"), ProjectCommandKind.Gradle);
             AddProjectCommand(commands, 0x201, () => RunForSelectedAsync("test"), ProjectCommandKind.Gradle);
@@ -320,6 +326,28 @@ namespace Vistudio
         }
 
         internal Task<bool> BuildForDebugAsync(CancellationToken token) => BeginBuildAsync("build", token);
+
+        /// <summary>Hot reload command: saves modified documents like a Kotlin build command does (prompts stay with the IDE).</summary>
+        internal async Task SaveModifiedDocumentsAsync()
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+            var dte = await GetServiceAsync(typeof(EnvDTE.DTE)) as EnvDTE.DTE
+                ?? throw new InvalidOperationException("Visual Studio automation service is unavailable.");
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (dte.Documents == null) return;
+            foreach (EnvDTE.Document document in dte.Documents)
+            {
+                if (!document.Saved) document.Save();
+                if (!document.Saved) throw new InvalidOperationException("Hot reload canceled: save modified documents first.");
+            }
+        }
+
+        /// <summary>Compiler diagnostics of a hot reload compile, shown like those of a build (Error List and squiggles).</summary>
+        internal void PublishBuildDiagnostics(BuildDiagnostic[] diagnostics, DateTime buildStartedUtc)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            buildErrors?.Publish(diagnostics, buildStartedUtc);
+        }
 
         /// <summary>True while a Gradle operation holds the shared gate (UI thread).</summary>
         internal bool GradleBusy { get { ThreadHelper.ThrowIfNotOnUIThread(); return buildCancellation != null; } }

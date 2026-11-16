@@ -65,6 +65,9 @@
     <Content Include="Build/ComposePreview.gradle" IncludeInVSIX="true" />
     <Content Include="Build/VistudioPreviewRenderer.java" IncludeInVSIX="true" />
     <Content Include="Build/JavaKotlinInterop.gradle" IncludeInVSIX="true" />
+    <!-- Kotlin/JVM hot reload: the user's Gradle build compiles the module and the JDK-only reload agent. -->
+    <Content Include="Build/HotReload.gradle" IncludeInVSIX="true" />
+    <Content Include="Build/VistudioHotReloadAgent.java" IncludeInVSIX="true" />
     <!-- Newest releases of declared Gradle dependencies for the Packages node (T60). -->
     <Content Include="Build/OutdatedDependencies.gradle" IncludeInVSIX="true" />
     <!-- Package nodes of every project type and the language project commands (T59, T60). -->

@@ -1,0 +1,113 @@
+// Kotlin/JVM hot reload: compiles the JVM classes of the module that owns the running program's entry file, lists the
+// class files of every JVM class output before and after that compilation, and builds the reload agent jar
+// (VistudioHotReloadAgent.java, JDK-only). Vistudio compares the two lists and has the agent swap the changed classes
+// into the running JVM. Inputs come from environment variables set by Vistudio; the explicit root guard keeps
+// buildSrc/included builds out. Lines starting with VISTUDIO_HOTRELOAD_ERROR report a problem the IDE shows instead of
+// the Gradle failure text.
+//
+// List format (UTF-8, tab separated): "D <class directory>" followed by its "C <relative path> <length> <modified ms>"
+// lines (before.tsv of a session's first reload adds a SHA-256 column); after.tsv also has "A <agent jar>" and
+// "M <module path> <compiled tasks>".
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def requestedRoot = System.getenv('VISTUDIO_HOTRELOAD_ROOT')
+    if (!requestedRoot || root.projectDir.canonicalFile != new File(requestedRoot).canonicalFile) return
+    def required = { String name ->
+        def value = System.getenv(name)
+        if (!value) throw new GradleException(name + ' is required.')
+        value
+    }
+    def fail = { String message ->
+        println('VISTUDIO_HOTRELOAD_ERROR\t' + message.replace('\t', ' ').replace('\r', '').replace('\n', ' '))
+        throw new GradleException(message)
+    }
+    def entryFile = new File(required('VISTUDIO_HOTRELOAD_FILE')).canonicalFile
+    def output = new File(required('VISTUDIO_HOTRELOAD_OUTPUT')).canonicalFile
+    def agentSource = new File(required('VISTUDIO_HOTRELOAD_AGENT')).canonicalFile
+    def under = { File file, File directory -> file.path.toLowerCase().startsWith(directory.canonicalPath.toLowerCase() + File.separator) }
+    def taskPath = { project, String name -> (project.path == ':' ? '' : project.path) + ':' + name }
+
+    // Every JVM class output of the build: Kotlin JVM targets (kotlin("jvm"), jvm()/jvm("desktop") of Multiplatform)
+    // and Java source sets. A Kotlin/JVM module is seen both ways with the same "classes" task; directories are merged.
+    def units = []
+    root.allprojects.each { project ->
+        def kotlin = project.extensions.findByName('kotlin')
+        def targets = kotlin == null ? [] : (kotlin.hasProperty('targets') ? kotlin.targets.toList() : (kotlin.hasProperty('target') ? [kotlin.target] : []))
+        targets.findAll { it.platformType.name() == 'jvm' }.each { target ->
+            target.compilations.each { compilation ->
+                units << [project: project, main: compilation.name == 'main', task: taskPath(project, compilation.compileAllTaskName), directories: compilation.output.classesDirs]
+            }
+        }
+        def sourceSets = project.extensions.findByName('sourceSets')
+        if (sourceSets != null) sourceSets.each { sourceSet ->
+            units << [project: project, main: sourceSet.name == 'main', task: taskPath(project, sourceSet.classesTaskName), directories: sourceSet.output.classesDirs]
+        }
+    }
+
+    // The owning module is the deepest project directory that contains the entry file. Gradle compiles the modules it
+    // depends on as part of its own compilation.
+    def owner = root.allprojects.findAll { under(entryFile, it.projectDir) }.max { it.projectDir.canonicalPath.length() }
+    def compileTasks = owner == null ? [] : units.findAll { it.project == owner && it.main }.collect { it.task }.unique()
+    def problem = null
+    if (owner == null) problem = "${entryFile.name} is not inside a Gradle project of ${root.projectDir}."
+    else if (compileTasks.isEmpty()) problem = "Module ${owner.path} has no JVM classes to reload (no Kotlin JVM target and no Java source set)."
+
+    // The first reload of a session also gets the hash of every class file as it was before the compilation: Vistudio
+    // then knows exactly which bytes the JVM started with. Later reloads compare against what it remembers.
+    def hashBefore = System.getenv('VISTUDIO_HOTRELOAD_HASH') == '1'
+    def sha256 = { File classFile -> java.security.MessageDigest.getInstance('SHA-256').digest(classFile.bytes).encodeHex().toString() }
+    def snapshot = { File file, List<String> extra, boolean hashed ->
+        def lines = []
+        units.collectMany { it.directories.files }.unique().each { File directory ->
+            if (!directory.directory) return
+            lines << 'D\t' + directory.path
+            def base = directory.toPath()
+            directory.eachFileRecurse(groovy.io.FileType.FILES) { File classFile ->
+                if (classFile.name.endsWith('.class'))
+                    lines << 'C\t' + base.relativize(classFile.toPath()).toString() + '\t' + classFile.length() + '\t' + classFile.lastModified() +
+                        (hashed ? '\t' + sha256(classFile) : '')
+            }
+        }
+        lines.addAll(extra)
+        file.parentFile.mkdirs()
+        file.setText(lines.join('\n') + '\n', 'UTF-8')
+    }
+
+    // Outside the project's build directory: the running JVM keeps the jar it loaded open, and "clean" must not fail on it.
+    def agentDirectory = new File(output, 'agent')
+    def compileAgent = root.tasks.register('vistudioCompileHotReloadAgent6cc1f5c0', JavaCompile) {
+        source = root.files(agentSource).asFileTree
+        classpath = root.files()
+        destinationDirectory.set(new File(agentDirectory, 'classes'))
+        options.sourcepath = root.files()
+        options.annotationProcessorPath = root.files()
+        sourceCompatibility = '11'
+        targetCompatibility = '11'
+        options.encoding = 'UTF-8'
+        options.release.set(JavaVersion.current().isJava11Compatible() && JavaVersion.current() != JavaVersion.VERSION_11 ? 11 : null)
+    }
+    // The running JVM keeps the jar it loaded open, so each agent source gets its own jar name.
+    def agentHash = java.security.MessageDigest.getInstance('SHA-256').digest(agentSource.bytes).encodeHex().toString().substring(0, 12)
+    def agentJar = root.tasks.register('vistudioHotReloadAgentJar6cc1f5c0', Jar) {
+        from(compileAgent)
+        destinationDirectory.set(agentDirectory)
+        archiveFileName.set("vistudio-hot-reload-agent-${agentHash}.jar")
+        manifest { attributes('Agent-Class': 'VistudioHotReloadAgent', 'Can-Redefine-Classes': 'true') }
+    }
+
+    def reload = root.tasks.register('vistudioHotReload6cc1f5c0') {
+        if (problem != null) {
+            doFirst { fail(problem) }
+            return
+        }
+        dependsOn(compileTasks)
+        dependsOn(agentJar)
+        doLast {
+            snapshot(new File(output, 'after.tsv'), ['A\t' + agentJar.get().archiveFile.get().asFile.path, 'M\t' + owner.path + '\t' + compileTasks.join(' ')], false)
+        }
+    }
+    // Before any task runs: what is on disk now is what the previous compilation produced.
+    gradle.taskGraph.whenReady { graph ->
+        if (problem == null && graph.hasTask(reload.get())) snapshot(new File(output, 'before.tsv'), [], hashBefore)
+    }
+}

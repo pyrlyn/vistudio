@@ -80,6 +80,21 @@ F5 first runs the existing Gradle build/diagnostics pipeline and proceeds only o
 
 The IDE never loads Compose: the user's Gradle build compiles the module and the renderer uses the module's own Compose and Skia versions. Reflection uses only stable shapes (the `(Composer, int)` signature of a parameterless composable, `ImageComposeScene` constructors matched by parameter type, Kotlin's `encodeToData$default` bridge), so no Compose version is pinned by the extension.
 
+## Hot reload path
+
+| Class / file | Responsibility |
+| --- | --- |
+| `GradleCommand.CreateHotReload` (Core) | Fixed init-script task with paths in environment variables; the only Gradle run on a daemon (private registry, ten-minute idle timeout) |
+| `Build/HotReload.gradle` | Picks the project owning the program's entry file, depends on the `classes` tasks of its main JVM compilations, lists the class files of every JVM class output before the task graph runs and after, compiles and packs the agent |
+| `Build/VistudioHotReloadAgent.java` | JDK-only. `main`: attach client (`VirtualMachine.loadAgent`, by reflection). `agentmain`: reads the request, redefines the loaded classes in one step, class by class when the JVM refuses the set, writes one result line per class |
+| `HotReloadSnapshot`, `HotReloadState`, `HotReloadResult` (Core) | Class lists, what the JVM is known to run (length, time, hash per class file; refused classes stay pending), agent result and the text shown to the user |
+| `HotReloadSession` (Core) | One per running program: owns the process job the Gradle daemon lives in, runs the compile and the attach client, ends the daemon when disposed |
+| `HotReloadJvm` (Core) | The program's JVM among `jps -l` rows (main class, started with the session), its start time and `java.exe` |
+| `KotlinHotReload` (VSIX) | Session bound to `KotlinDebugCoordinator` launches, compile through the package's Gradle gate, Error List, Output pane and status bar, merge of overlapping requests |
+| `KotlinHotReloadSaveListener` (VSIX) | Reload on save of `.kt`/`.java` documents (setting `HotReloadOnSave`) |
+
+Responsibilities stay apart: Gradle compiles, the JVM's own instrumentation API swaps classes, and the IDE only orders the two. The Kotlin server's debug adapter is not asked to redefine classes (DAP has no such request), which is also why a program paused at a breakpoint takes the classes only when it continues: the attach thread is suspended with the rest.
+
 ## CodeLens path
 
 `Vistudio.Core/CodeLens/CodeDeclarationScanner` finds Kotlin and Java declarations lexically (no VS dependencies). The VSIX hosts VisualStudio.Extensibility parts in-process (`VssdkCompatibleExtension`, manifest type `VSSDK+VisualStudio.Extensibility`): `JvmCodeLensTaggerProvider` emits `CodeLensTag`s for `.kt`/`.java` views, and four `ICodeLensProvider`s add references, implementations, Run and Debug lenses. Counts are `textDocument/references` / `textDocument/implementation` sent through the owning language client (`KotlinLanguageClient.RequestAsync`, `JavaLanguageClient.RequestAsync`); clicks run Visual Studio's Find All References / Go To Implementation at the name, which the same LSP client answers. Run and Debug call `KotlinDebugCoordinator.LaunchAsync` with `noDebug`. The parts apply to the `text` document type and filter by extension, because Visual Studio sets the Kotlin/Java content type after the view opens. Evidence: [codelens-validation.md](codelens-validation.md).

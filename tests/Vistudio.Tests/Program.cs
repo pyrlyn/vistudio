@@ -177,6 +177,37 @@ internal static class Program
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Bazel, build cache).");
                 return failures.Count == 0 ? 0 : 1;
             }
+            if (args.Length >= 1 && args[0] == "--hot-reload")
+            {
+                // Kotlin/JVM hot reload (T72). The live part starts a Kotlin + Java program with the Gradle wrapper of a copy
+                // of samples/kotlin-jvm and reloads it (needs a JDK; several minutes). "--hot-reload none" runs the unit checks
+                // only; "--hot-reload debugger" instead runs the program under the installed Kotlin server's debugger (F5 and
+                // Ctrl+F5 launches, a reload at a breakpoint); "--hot-reload all" runs both live parts.
+                var failures = new System.Collections.Generic.List<string>();
+                Action<bool, string> collect = (condition, message) =>
+                {
+                    assertions++;
+                    if (!condition) failures.Add(message);
+                    Console.WriteLine((condition ? "  ok   " : "  FAIL ") + (message.Length > 400 ? message.Substring(0, 400) + "..." : message));
+                };
+                HotReloadTests.Run(Path.Combine(root, "hot-reload"), collect);
+                var stage = args.Length > 1 ? args[1] : "live";
+                var live = new System.Collections.Generic.List<string>();
+                if (stage == "live" || stage == "all")
+                {
+                    try { if (await HotReloadTests.RunLiveAsync(root, collect)) live.Add("Gradle and JVM"); }
+                    catch (Exception e) { failures.Add("Live hot reload checks stopped: " + e); }
+                }
+                if (stage == "debugger" || stage == "all")
+                {
+                    try { if (await HotReloadDebugProbe.RunAsync(root, collect)) live.Add("Kotlin server debugger"); }
+                    catch (Exception e) { failures.Add("Hot reload checks under the debugger stopped: " + e); }
+                }
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Kotlin/JVM hot reload" +
+                    (live.Count == 0 ? ", live parts skipped" : ", live: " + string.Join(", ", live)) + ").");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--codelens")
             {
                 // Reports every failing CodeLens check, not only the first one.
@@ -202,6 +233,7 @@ internal static class Program
             DartTests.Run(root, Check);
             MiseTests.Run(root, Check);
             BazelTests.Run(Path.Combine(root, "bazel"), Check);
+            HotReloadTests.Run(Path.Combine(root, "hot-reload"), Check);
             await ProjectFileTests.RunAsync(root, Check);
             ProjectTreeTests.Run(root, Check);
             KotlinTargetTests.Run(root, Check);

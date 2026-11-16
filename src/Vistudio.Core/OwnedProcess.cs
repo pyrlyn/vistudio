@@ -10,7 +10,9 @@ namespace Vistudio.Core
     public sealed class OwnedProcess : IDisposable
     {
         private readonly Process process;
-        private readonly ProcessJob job = new ProcessJob();
+        private readonly ProcessJob job;
+        // A shared job outlives this process: processes it leaves behind (a Gradle daemon) end with the job's owner.
+        private readonly bool ownsJob;
         private readonly TaskCompletionSource<int> exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool disposed;
         public Stream Input => process.StandardInput.BaseStream;
@@ -19,8 +21,12 @@ namespace Vistudio.Core
         public Task<int> Exit => exited.Task;
         public int Id => process.Id;
 
-        public OwnedProcess(ProcessStartInfo start)
+        public OwnedProcess(ProcessStartInfo start) : this(start, null) { }
+
+        internal OwnedProcess(ProcessStartInfo start, ProcessJob? sharedJob)
         {
+            ownsJob = sharedJob == null;
+            job = sharedJob ?? new ProcessJob();
             process = new Process { StartInfo = start, EnableRaisingEvents = true };
             process.Exited += (_, __) => exited.TrySetResult(process.ExitCode);
             try
@@ -32,14 +38,15 @@ namespace Vistudio.Core
             catch
             {
                 try { if (!process.HasExited) process.Kill(); } catch (InvalidOperationException) { }
-                job.Dispose(); process.Dispose(); throw;
+                if (ownsJob) job.Dispose();
+                process.Dispose(); throw;
             }
         }
 
         public async Task StopAsync()
         {
             if (disposed) return;
-            job.Terminate();
+            if (ownsJob) job.Terminate();
             if (process.HasExited) return;
             // --no-daemon keeps each Gradle invocation's worker in its own tree.
             using (var killer = new Process
@@ -64,10 +71,17 @@ namespace Vistudio.Core
 
         /// <summary>Runs to completion with standard output and error kept apart (machine-readable output on one, progress on the other).</summary>
         /// <param name="started">Gets the process id once it runs (diagnostics watch the program a Run command starts).</param>
-        public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token, Action<int>? started = null)
+        public static Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token, Action<int>? started = null) =>
+            RunAsync(start, onOutput, onError, token, started, null);
+
+        /// <param name="sharedJob">
+        /// When set, the process joins this job instead of one of its own: what it leaves running when it exits stays
+        /// alive until the job's owner ends it. Cancellation still ends the process and its descendants.
+        /// </param>
+        internal static async Task<int> RunAsync(ProcessStartInfo start, Action<string> onOutput, Action<string> onError, CancellationToken token, Action<int>? started, ProcessJob? sharedJob)
         {
             token.ThrowIfCancellationRequested();
-            using (var owned = new OwnedProcess(start))
+            using (var owned = new OwnedProcess(start, sharedJob))
             {
                 owned.process.StandardInput.Close();
                 started?.Invoke(owned.process.Id);
@@ -100,7 +114,7 @@ namespace Vistudio.Core
         {
             if (disposed) return;
             disposed = true;
-            job.Dispose();
+            if (ownsJob) job.Dispose();
             process.Dispose();
         }
     }

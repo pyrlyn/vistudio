@@ -19,14 +19,15 @@ namespace Vistudio
         internal const string EngineId = "7b672d65-cf4f-424e-8584-49f2f208e46c";
         private readonly KotlinEnvironment environment;
         private readonly KotlinLanguageClient language;
+        private readonly KotlinHotReload hotReload;
         private readonly IServiceProvider services;
         private readonly SemaphoreSlim launchGate = new SemaphoreSlim(1, 1);
         private KotlinDebugLifecycle? session;
 
         [ImportingConstructor]
-        public KotlinDebugCoordinator(KotlinEnvironment environment, KotlinLanguageClient language,
+        public KotlinDebugCoordinator(KotlinEnvironment environment, KotlinLanguageClient language, KotlinHotReload hotReload,
             [Import(typeof(SVsServiceProvider))] IServiceProvider services)
-        { this.environment = environment; this.language = language; this.services = services; }
+        { this.environment = environment; this.language = language; this.hotReload = hotReload; this.services = services; }
 
         internal Task LaunchAsync(string workspace, DebugLaunchActionContext context, CancellationToken token) =>
             LaunchAsync(workspace, JObject.FromObject(context.LaunchConfiguration), context.ProjectFileContext?.FilePath, token);
@@ -91,8 +92,13 @@ namespace Vistudio
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(startup.Token);
                     var debugger = services.GetService(typeof(SVsShellDebugger)) as IVsDebugger4 ?? throw new InvalidOperationException("Visual Studio debugger unavailable.");
                     session?.Dispose();
-                    session = new KotlinDebugLifecycle((IVsDebugger)debugger, language.ReleaseDebugSession);
+                    // The session ends (design mode, or a launch that failed) for the server lease and for hot reload alike.
+                    session = new KotlinDebugLifecycle((IVsDebugger)debugger, () => { language.ReleaseDebugSession(); hotReload.ProgramEnded(); });
                     lease = false;
+                    var javaHome = (string?)launch["env"]?["JAVA_HOME"] ?? settings.GradleJavaHome;
+                    // Hot reload (Tools > Kotlin > Hot Reload, or saving a source file) compiles in the Gradle build of this
+                    // workspace and finds the JVM by its main class, like Vistudio Diagnostics below.
+                    hotReload.ProgramStarting(KotlinEnvironment.ResolveGradleRoot(workspace, settings.GradleRoot), source, mainClass!, javaHome);
                     var target = new VsDebugTargetInfo4
                     {
                         dlo = (uint)DEBUG_LAUNCH_OPERATION.DLO_CreateProcess,
@@ -103,7 +109,7 @@ namespace Vistudio
                     environment.Log("Launching Kotlin/JVM debugger for " + mainClass + " (Gradle). Program output appears in Debug Output.");
                     // Visual Studio's Diagnostic Tools refuses Debug Adapter Host engines (T71); Vistudio Diagnostics
                     // finds the JVM that Gradle starts and shows its CPU, memory and heap instead.
-                    Diagnostics.DiagnosticsSessions.WatchJvm(mainClass!, (string?)launch["env"]?["JAVA_HOME"] ?? settings.GradleJavaHome);
+                    Diagnostics.DiagnosticsSessions.WatchJvm(mainClass!, javaHome);
                     try { debugger.LaunchDebugTargets4(1, new[] { target }, new VsDebugTargetProcessInfo[1]); }
                     catch { Diagnostics.DiagnosticsSessions.CancelPending("The Kotlin debug launch failed."); throw; }
                     launched = true; // Native debugger events now own the server lease.

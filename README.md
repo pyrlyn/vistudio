@@ -177,6 +177,27 @@ The transport resolves the backend's temporary object previews before returning 
 
 When the backend sends `terminated` early, the transport continues forwarding output and allows up to five seconds for `exited`, then delivers the actual reported exit code before ending the session. It never substitutes success for a missing exit code. Stop Debugging and connection closure bypass that wait. For Gradle launches the backend reports the Gradle runner's status; a child's distinct exit code may also appear in Gradle's failure output. See [validation evidence and limitations](docs/validation.md).
 
+### Hot reload
+
+While a Kotlin/JVM program started with **F5**, **Ctrl+F5** or a Run/Debug lens runs, **Tools > Kotlin > Hot Reload** (`Kotlin.HotReload`) compiles its Gradle module and swaps the changed classes into the running JVM. With **Hot reload on save** (Tools > Options > Kotlin > Debugging, on by default; `vistudio.kotlin.hotReloadOnSave` in `.vs\settings.json`) saving a `.kt` or `.java` file of that Gradle build does the same; several saves within 400 ms reload once. Kotlin and Java classes reload alike.
+
+| Step | How it works |
+| --- | --- |
+| Compile | Gradle, through the init script `Build/HotReload.gradle`: the `classes` task (Multiplatform: `<target>MainClasses`) of the module that owns the program's entry file, which also compiles the modules it depends on. The script lists the class files of every JVM class output before and after. Compiler errors go to the Error List and the Kotlin Output pane, and nothing is reloaded. |
+| Speed | This is the one Gradle run that uses a daemon, so a reload takes seconds after the first one. The daemon has its own registry under `%LOCALAPPDATA%\Vistudio\hot-reload\<project>` (no other Gradle client shares it), and ends with the debug session or after ten idle minutes. Every other Gradle run stays `--no-daemon`. |
+| Swap | A JDK-only agent (`Build/VistudioHotReloadAgent.java`, compiled and packed by the same Gradle run, outside the project's `build` folder) is loaded into the program through the JDK's attach mechanism and calls `Instrumentation.redefineClasses` for the classes whose bytes changed. The JVM is found with `jps -l` by its main class. The debug adapter and the language server are not involved. |
+| Result | One line in the Kotlin Output pane and the status bar: classes reloaded, classes the program has not loaded yet (read from disk when first used), and classes the JVM refused, each with the JVM's reason. |
+
+Limits:
+
+- The HotSpot JVM swaps **method bodies only**. A class whose structure changed (an added or removed method, field, lambda or supertype) is refused and keeps running its previous code until the program restarts; the other classes of the same reload are still applied.
+- Code that is already running keeps its old body until the method is entered again (a loop inside `main` never is).
+- A program **paused at a breakpoint** takes the classes when it continues, not while it is paused.
+- JDK 21 and later print "A Java agent has been loaded dynamically" to the program's output at each reload; `"vmArgs": ["-XX:+EnableDynamicAgentLoading"]` in `launch.vs.json` hides it. The program must run on a JDK (the agent needs the `jdk.attach` module), Java 11 or later.
+- Programs started with **Run with Gradle**, and JS, Wasm and Native targets, are not reloaded. A Compose UI is not recomposed by a reload (JetBrains' Compose Hot Reload Gradle plugin is not integrated).
+
+Checks: `Vistudio.Tests.exe --hot-reload none` (unit, also in the default run), `--hot-reload` (a Kotlin + Java program under `gradlew run`, reloaded with the shipped script and agent), `--hot-reload debugger` (the same under the installed Kotlin server's debugger) and `tests/verify-hot-reload.ps1` (Visual Studio). What was run and what was not: [docs/hot-reload-validation.md](docs/hot-reload-validation.md).
+
 ### Kotlin expressions in Watch and Immediate
 
 While stopped at a Kotlin breakpoint, select the desired frame in **Call Stack**. In **Debug > Windows > Watch > Watch 1**, enter a Kotlin expression in the empty Name row. In **Immediate** (**Ctrl+Alt+I** with the standard keyboard profile), enter `? expression` and press Enter. Evaluation uses the suspended JVM and selected stack frame through the Kotlin backend.

@@ -33,6 +33,7 @@
       <Button guid="guidCommands" id="Clean" priority="0x0110" type="Button"><Parent guid="guidCommands" id="KotlinGradleGroup" /><Strings><ButtonText>Clean with Gradle</ButtonText></Strings></Button>
       <Button guid="guidCommands" id="Test" priority="0x0120" type="Button"><Parent guid="guidCommands" id="KotlinGradleGroup" /><Strings><ButtonText>Test with Gradle</ButtonText></Strings></Button>
       <Button guid="guidCommands" id="Cancel" priority="0x0130" type="Button"><Parent guid="guidCommands" id="KotlinGradleGroup" /><Strings><ButtonText>Cancel Gradle</ButtonText></Strings></Button>
+      <Button guid="guidCommands" id="HotReload" priority="0x0128" type="Button"><Parent guid="guidCommands" id="KotlinGradleGroup" /><Strings><ButtonText>Hot Reload</ButtonText><ToolTipText>Compile and swap changed classes into the running Kotlin/JVM program</ToolTipText><CanonicalName>.Kotlin.HotReload</CanonicalName><LocCanonicalName>.Kotlin.HotReload</LocCanonicalName></Strings></Button>
       <Button guid="guidCommands" id="Restart" priority="0x0140" type="Button"><Parent guid="guidCommands" id="KotlinLanguageGroup" /><Strings><ButtonText>Restart Language Server</ButtonText></Strings></Button>
       <Button guid="guidCommands" id="ComposePreview" priority="0x0145" type="Button"><Parent guid="guidCommands" id="KotlinLanguageGroup" /><Strings><ButtonText>Compose Preview</ButtonText><CanonicalName>.Kotlin.ComposePreview</CanonicalName><LocCanonicalName>.Kotlin.ComposePreview</LocCanonicalName></Strings></Button>
       <Button guid="guidCommands" id="Options" priority="0x0150" type="Button"><Parent guid="guidCommands" id="KotlinLanguageGroup" /><Strings><ButtonText>Settings</ButtonText></Strings></Button>
@@ -41,7 +42,7 @@
   <Symbols>
     <GuidSymbol name="guidPackage" value="{6cc1f5c0-99c8-43c6-b605-8dac96970119}" />
     <GuidSymbol name="guidCommands" value="{75625a1a-f6e1-42aa-bf3f-90432c756124}">
-      <IDSymbol name="CreateProject" value="0x010A" />
+      <IDSymbol name="CreateProject" value="0x010A" /><IDSymbol name="HotReload" value="0x010B" />
       <IDSymbol name="ProjectGroup" value="0x1001" />
       <IDSymbol name="ProjectImport" value="0x0200" /><IDSymbol name="ProjectTest" value="0x0201" /><IDSymbol name="ProjectRun" value="0x0202" />
       <IDSymbol name="ProjectTasks" value="0x0203" /><IDSymbol name="ProjectCancel" value="0x0204" /><IDSymbol name="ProjectEdit" value="0x0205" />

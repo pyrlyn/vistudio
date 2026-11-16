@@ -19,6 +19,8 @@ namespace Vistudio.Core
         public string RunTasks { get; set; } = "run";
         /// <summary>Gradle build cache (--build-cache) for Build, Test and Run tasks; gradle.properties org.gradle.caching wins.</summary>
         public bool GradleBuildCache { get; set; } = true;
+        /// <summary>Saving a .kt or .java file while a Kotlin/JVM program runs (F5, Ctrl+F5) compiles it and swaps the changed classes into the program.</summary>
+        public bool HotReloadOnSave { get; set; } = true;
         public bool RainbowBraces { get; set; } = true;
         public bool EditorDiagnostics { get; set; } = true;
         /// <summary>Vertical scroll bar mode in Kotlin and Java editors. Inherit keeps the Visual Studio setting.</summary>

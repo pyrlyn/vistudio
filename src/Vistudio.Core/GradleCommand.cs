@@ -72,7 +72,35 @@ namespace Vistudio.Core
             return CreateCore(root, javaHome, "--no-configuration-cache --no-configure-on-demand --init-script \"" + script + "\" " + task);
         }
 
-        private static ProcessStartInfo CreateCore(string root, string javaHome, string arguments)
+        public const string HotReloadTask = ":vistudioHotReload6cc1f5c0";
+
+        /// <summary>
+        /// Compiles the JVM classes of the module that owns <paramref name="entryFile"/> and lists class files before and
+        /// after (HotReload.gradle). Unlike every other Gradle run this one uses a daemon, because a reload has to take
+        /// seconds: the daemon is registered under <paramref name="daemonRegistry"/> (so no other Gradle client shares
+        /// it), exits after ten idle minutes, and the caller ends it with the debug session.
+        /// </summary>
+        /// <param name="hashBefore">Also hash every class file as it is before the compilation (a session's first reload).</param>
+        public static ProcessStartInfo CreateHotReload(string root, string javaHome, string script, string agentSource, string entryFile, string output, string daemonRegistry, bool hashBefore = false)
+        {
+            if (!File.Exists(agentSource)) throw new FileNotFoundException("The hot reload agent source is missing.", agentSource);
+            script = Path.GetFullPath(script);
+            if (!File.Exists(script)) throw new FileNotFoundException("Gradle init script is missing.", script);
+            daemonRegistry = Path.GetFullPath(daemonRegistry);
+            if (Regex.IsMatch(script, "[\"%!\r\n]") || Regex.IsMatch(daemonRegistry, "[\"%!\r\n]"))
+                throw new ArgumentException("The init script or daemon registry path contains shell expansion characters.");
+            var start = CreateCore(root, javaHome, "\"-Dorg.gradle.daemon.registry.base=" + daemonRegistry + "\" -Dorg.gradle.daemon.idletimeout=600000 " +
+                "--no-configuration-cache --no-configure-on-demand --init-script \"" + script + "\" " + HotReloadTask, daemon: true);
+            start.EnvironmentVariables["VISTUDIO_HOTRELOAD_ROOT"] = Path.GetFullPath(root);
+            start.EnvironmentVariables["VISTUDIO_HOTRELOAD_FILE"] = Path.GetFullPath(entryFile);
+            start.EnvironmentVariables["VISTUDIO_HOTRELOAD_AGENT"] = Path.GetFullPath(agentSource);
+            start.EnvironmentVariables["VISTUDIO_HOTRELOAD_OUTPUT"] = Path.GetFullPath(output);
+            // Set either way: a daemon reused from the previous reload must not keep the earlier value.
+            start.EnvironmentVariables["VISTUDIO_HOTRELOAD_HASH"] = hashBefore ? "1" : "0";
+            return start;
+        }
+
+        private static ProcessStartInfo CreateCore(string root, string javaHome, string arguments, bool daemon = false)
         {
             root = Path.GetFullPath(root);
             if (!File.Exists(Path.Combine(root, "gradlew.bat")))
@@ -81,7 +109,7 @@ namespace Vistudio.Core
             // cmd.exe then skips the current directory for bare command names.
             var info = ProcessCommands.CreateRedirected(
                 Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                "/d /v:off /s /c \"\".\\gradlew.bat\" --console=plain --no-daemon " + arguments + "\"", root);
+                "/d /v:off /s /c \"\".\\gradlew.bat\" --console=plain " + (daemon ? "--daemon " : "--no-daemon ") + arguments + "\"", root);
             if (!string.IsNullOrWhiteSpace(javaHome))
             {
                 javaHome = Path.GetFullPath(javaHome);

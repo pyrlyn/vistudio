@@ -64,6 +64,8 @@ The New Project templates (`Vistudio.Core/Templates`) generate Gradle projects w
 
 The Compose preview renderer (`Build/VistudioPreviewRenderer.java`) is compiled by the user's Gradle build with the JDK it already uses and calls Compose reflectively; the extension adds no Compose, Skia or JVM dependency.
 
+Kotlin/JVM hot reload (T72) adds no package or bundled program: the reload agent (`Build/VistudioHotReloadAgent.java`) uses only the JDK (`java.lang.instrument`, and `jdk.attach` by reflection), is compiled and packed by the user's Gradle build (`Build/HotReload.gradle`, release 11) and is loaded into the program with the `java.exe` next to the program's own JVM; `jps` from the same JDK finds that JVM. Tested with Eclipse Temurin 21.0.12, Gradle 8.14.7 and Kotlin 2.4.21. Its Gradle runs are the only ones on a daemon (private registry under `%LOCALAPPDATA%\Vistudio\hot-reload`, ended with the debug session).
+
 The Multiplatform plugin provisions Kotlin/Native/LLVM and Node 24.16.0 with Yarn 1.22.22 for its target tasks. Its generated npm dependencies are recorded in the sample's `kotlin-js-store/yarn.lock`. Runtime assertions use Kotlin's standard library, without adding a test framework. File icons use embedded WPF vector resources and the VSSDK image service; brace classifiers and diagnostic adornments use existing SDK contracts, without new NuGet dependencies.
 
 Zig support (T44-T48) adds no NuGet package: the grammar is a TextMate JSON file in the existing grammar folder, ZLS goes through the LSP client and CodeLens parts already listed, and zig.exe/ZLS are the user's installs. The sample `samples/zig-hello` uses only the Zig standard library.

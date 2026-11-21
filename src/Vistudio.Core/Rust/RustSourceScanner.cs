@@ -1,5 +1,19 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Vistudio.Core.Rust
 {
+    /// <summary>A Rust test function: its name, its path inside the file (<c>tests::adds</c>) and the name's offsets.</summary>
+    public sealed class RustTest
+    {
+        public RustTest(string name, string path, int nameStart, int nameEnd) { Name = name; Path = path; NameStart = nameStart; NameEnd = nameEnd; }
+        public string Name { get; }
+        public string Path { get; }
+        public int NameStart { get; }
+        public int NameEnd { get; }
+    }
+
     /// <summary>
     /// Lexical helpers for Rust sources (no compiler, tolerant of broken code), used for editor structure and brace
     /// colors. rust-analyzer stays the source of everything semantic.
@@ -65,6 +79,101 @@ namespace Vistudio.Core.Rust
                 i++;
             }
             return new string(c);
+        }
+
+        /// <summary>
+        /// Test functions of a Rust file: a <c>fn</c> after an attribute whose path ends in <c>test</c> (<c>#[test]</c>,
+        /// <c>#[tokio::test]</c>, <c>#[async_std::test(...)]</c>), with the inline modules around it (<c>mod tests { ... }</c>).
+        /// Lexical, on the masked text, so attributes in comments or strings do not count.
+        /// </summary>
+        public static IReadOnlyList<RustTest> Tests(string text)
+        {
+            var masked = Mask(text);
+            var tests = new List<RustTest>();
+            var modules = new Stack<(string Name, int Depth)>();
+            var depth = 0;
+            string? pendingModule = null;
+            var pendingTest = false;
+            var i = 0;
+            while (i < masked.Length)
+            {
+                var ch = masked[i];
+                if (ch == '{')
+                {
+                    depth++;
+                    if (pendingModule != null) { modules.Push((pendingModule, depth)); pendingModule = null; }
+                    pendingTest = false;
+                    i++;
+                    continue;
+                }
+                if (ch == '}')
+                {
+                    if (modules.Count > 0 && modules.Peek().Depth == depth) modules.Pop();
+                    depth = Math.Max(0, depth - 1);
+                    pendingTest = false;
+                    i++;
+                    continue;
+                }
+                if (ch == ';') { pendingModule = null; pendingTest = false; i++; continue; }
+                if (ch == '#')
+                {
+                    var end = AttributeEnd(masked, i, out var isTest);
+                    if (end > i) { pendingTest |= isTest; i = end; continue; }
+                }
+                if (IsIdentifierStart(ch) && (i == 0 || !IsIdentifierPart(masked[i - 1])))
+                {
+                    var start = i;
+                    while (i < masked.Length && IsIdentifierPart(masked[i])) i++;
+                    var word = masked.Substring(start, i - start);
+                    if (word == "mod" || word == "fn")
+                    {
+                        var nameStart = i;
+                        while (nameStart < masked.Length && char.IsWhiteSpace(masked[nameStart])) nameStart++;
+                        var nameEnd = nameStart;
+                        while (nameEnd < masked.Length && IsIdentifierPart(masked[nameEnd])) nameEnd++;
+                        if (nameEnd > nameStart)
+                        {
+                            var name = masked.Substring(nameStart, nameEnd - nameStart);
+                            if (word == "mod") pendingModule = name;
+                            else if (pendingTest)
+                            {
+                                var path = string.Join("::", modules.Reverse().Select(m => m.Name).Concat(new[] { name }));
+                                tests.Add(new RustTest(name, path, nameStart, nameEnd));
+                            }
+                            if (word == "fn") pendingTest = false;
+                            i = nameEnd;
+                        }
+                    }
+                    continue;
+                }
+                i++;
+            }
+            return tests;
+        }
+
+        /// <summary>End of the attribute <c>#[...]</c> / <c>#![...]</c> at <paramref name="hash"/> (or <paramref name="hash"/> itself when there is none).</summary>
+        private static int AttributeEnd(string masked, int hash, out bool isTest)
+        {
+            isTest = false;
+            var j = hash + 1;
+            if (j < masked.Length && masked[j] == '!') j++;
+            while (j < masked.Length && char.IsWhiteSpace(masked[j])) j++;
+            if (j >= masked.Length || masked[j] != '[') return hash;
+            var open = j;
+            var depth = 0;
+            for (; j < masked.Length; j++)
+            {
+                if (masked[j] == '[') depth++;
+                else if (masked[j] == ']' && --depth == 0) break;
+            }
+            if (j >= masked.Length) return hash;
+            // The attribute's path: identifiers joined by `::`, up to `(`, `=` or `]`.
+            var path = masked.Substring(open + 1, j - open - 1);
+            var cut = path.IndexOfAny(new[] { '(', '=' });
+            if (cut >= 0) path = path.Substring(0, cut);
+            var segments = path.Split(new[] { "::" }, StringSplitOptions.None).Select(s => s.Trim()).ToArray();
+            isTest = masked[hash + 1] != '!' && segments.Length > 0 && segments[segments.Length - 1] == "test" && segments.All(s => s.Length > 0 && s.All(IsIdentifierPart));
+            return j + 1;
         }
 
         /// <summary>End (exclusive) of <c>r"..."</c>, <c>r#"..."#</c>, <c>br##"..."##</c> or <c>cr"..."</c> starting at <paramref name="i"/>; null otherwise (also for raw identifiers such as <c>r#type</c>).</summary>

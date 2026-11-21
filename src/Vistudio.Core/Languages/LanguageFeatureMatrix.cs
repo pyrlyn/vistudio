@@ -106,7 +106,7 @@ namespace Vistudio.Core.Languages
             Row(LaunchLens, S(k), S(j), S(d), S(z, ".zigproj: native debugger; otherwise zig run"), S(r, ".rustproj: native debugger; otherwise cargo run"),
                 O(c, "T63: C/C++ has no Vistudio CodeLens yet"), O(p, "T63: C/C++ has no Vistudio CodeLens yet"),
                 U(w, "a module has no main declaration (the entry is a _start export) and there is no WebAssembly debugger; Ctrl+F5 on the project runs it"));
-            Row(TestLens, O(k, "T34 (in progress): Kotlin and Java test run and debug from Test Explorer and editor lenses"), O(j, "T34 (in progress): Kotlin and Java test run and debug from Test Explorer and editor lenses"), S(d), O(z, "zig test --test-filter per test block"), O(r, "cargo test per #[test] function"),
+            Row(TestLens, O(k, "T34 (in progress): Kotlin and Java test run and debug from Test Explorer and editor lenses"), O(j, "T34 (in progress): Kotlin and Java test run and debug from Test Explorer and editor lenses"), S(d), S(z, "zig test --test-filter; Debug builds the test program for the native debugger"), S(r, "cargo test -- <path> --exact; Debug: cargo test --no-run, native debugger"),
                 O(c, "T63: C/C++ has no Vistudio CodeLens yet"), O(p, "T63: C/C++ has no Vistudio CodeLens yet"), U(w, "the text format has no test declarations"));
             Row(RestartCommand, S(k), O(j, "JDT LS restarts on settings and workspace changes only; Tools > Kotlin > Restart Language Server restarts the Kotlin server alone"), S(d), S(z),
                 O(r, "restarts on settings changes; no Tools menu for Rust yet"), V(c), V(p), O(w, "restarts on settings changes; no Tools menu for WebAssembly yet"));

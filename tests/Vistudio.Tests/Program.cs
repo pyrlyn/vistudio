@@ -82,6 +82,7 @@ internal static class Program
                 var failures = new System.Collections.Generic.List<string>();
                 Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
                 ZigTests.Run(root, collect);
+                TestLensTests.RunZig(collect);
                 var live = await ZigTests.RunLiveAsync(root, collect);
                 foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Zig" + (live ? ", live zig.exe" : "") + ").");
@@ -93,6 +94,7 @@ internal static class Program
                 var failures = new System.Collections.Generic.List<string>();
                 Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
                 RustWasmTests.Run(Path.Combine(root, "rust-wasm"), collect);
+                TestLensTests.RunRust(Path.Combine(root, "test-lens"), collect);
                 var live = await RustWasmTests.RunLiveAsync(root, collect);
                 foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
                 Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (Rust and WebAssembly" + (live ? ", live servers" : "") + ").");
@@ -274,6 +276,8 @@ internal static class Program
             EditorLanguageTests.Run(Check);
             ToolDiagnosticTests.Run(Check);
             FeatureMatrixTests.Run(Check);
+            TestLensTests.RunRust(Path.Combine(root, "test-lens"), Check);
+            TestLensTests.RunZig(Check);
             ZigTests.Run(root, Check);
             DartTests.Run(root, Check);
             FlutterPreviewTests.Run(root, Check);

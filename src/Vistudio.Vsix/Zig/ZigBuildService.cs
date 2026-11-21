@@ -87,6 +87,22 @@ namespace Vistudio.Zig
             return await RunAsync("zig run " + Path.GetFileName(file), root, ZigCommandFactory.Run(zig, file, root, ZigToolchain.LibDirectory(settings), settings.DefaultFlags));
         }
 
+        /// <summary>
+        /// <c>zig test</c> of <paramref name="file"/>, only the tests whose name contains <paramref name="filter"/> (all of
+        /// them when it is empty). With <paramref name="emitBinary"/> the test program is built, not run (Debug test).
+        /// Output in the Zig pane, compiler errors in the Error List, as for Run File.
+        /// </summary>
+        public async Task<bool> TestFileAsync(string file, string? filter, string? emitBinary = null)
+        {
+            RequireZigFile(file);
+            var settings = ZigSettings.Load();
+            var zig = ZigToolchain.RequireExecutable(settings);
+            var root = await FindBuildRootAsync(file) ?? Path.GetDirectoryName(file)!;
+            if (emitBinary != null) Directory.CreateDirectory(Path.GetDirectoryName(emitBinary)!);
+            var title = "zig test " + Path.GetFileName(file) + (string.IsNullOrEmpty(filter) ? "" : " (" + filter + ")");
+            return await RunAsync(title, root, ZigCommandFactory.Test(zig, file, root, ZigToolchain.LibDirectory(settings), settings.DefaultFlags, filter, emitBinary));
+        }
+
         private static void RequireZigFile(string file)
         {
             if (!file.EndsWith(".zig", StringComparison.OrdinalIgnoreCase))

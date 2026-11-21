@@ -21,7 +21,7 @@ Legend: ✓ implemented by Vistudio · VS supplied by Visual Studio itself, left
 | Scroll bar map setting | ✓ | ✓ | **✓ new** | **✓ new** | **✓ new** | VS [6] | VS [6] | **✓ new** |
 | CodeLens: references | ✓ | ✓ | ✓ | ✓ | ✓ | – [7] | – [7] | ✓ |
 | CodeLens: Run \| Debug | ✓ | ✓ | ✓ | **✓ new** | ✓ | – [8] | – [8] | ⊘ [9] |
-| CodeLens: run tests | – [10] | – [10] | ✓ | – [11] | – [12] | – [8] | – [8] | ⊘ [13] |
+| CodeLens: run tests | – [10] | – [10] | ✓ | **✓ new** [11] | **✓ new** [12] | – [8] | – [8] | ⊘ [13] |
 | Restart language server command | ✓ | – [14] | ✓ | ✓ | – [15] | VS | VS | – [16] |
 | Project type and template | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Packages node | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -42,8 +42,8 @@ Legend: ✓ implemented by Vistudio · VS supplied by Visual Studio itself, left
 8. T63: C/C++ has no Vistudio CodeLens yet.
 9. A module has no `main` declaration (its entry is a `_start` export) and there is no WebAssembly debugger; Ctrl+F5 on the `.wasmproj` runs it.
 10. T34 (in progress): Kotlin and Java test run and debug from Test Explorer and editor lenses.
-11. `zig test --test-filter` per `test` block: not done.
-12. `cargo test` per `#[test]` function: not done.
+11. T75: **Run test** (`zig test <file> --test-filter <name>`, Zig pane, Error List) and **Debug test** (`--test-no-exec -femit-bin=zig-out\vistudio\test-<file>.exe`, then the native debugger) above each `test` block. Zig matches the filter as a substring of the full test name; an unnamed `test { }` runs the file's tests.
+12. T75: **Run test** (`cargo test [--lib|--bin x|--test x] -- <crate path> --exact`, Rust pane) and **Debug test** (`cargo test --no-run --message-format=json`, then the test program of the file's crate under the native debugger with `<crate path> --exact --nocapture`) above `#[test]` / `#[x::test]` functions; the crate path adds the file's module path (`src/net/http.rs` → `net::http::`).
 13. The text format has no test declarations.
 14. JDT LS restarts on settings and workspace changes only; Tools > Kotlin > Restart Language Server restarts the Kotlin server alone.
 15. rust-analyzer restarts on settings changes; there is no Tools menu for Rust to put the command in yet.
@@ -73,7 +73,7 @@ Not changed: the Kotlin brace lexer (template braces), every existing Kotlin/Jav
 
 ## Open after this change
 
-Real work that remains, not stubs: test lenses for Rust and Zig, Restart Language Server for Java, Rust and WebAssembly (needs a menu decision: no Tools submenu exists for Rust or WebAssembly), Java errors in `.kotlinproj` builds, and C/C++ CodeLens (T63).
+Real work that remains, not stubs: Restart Language Server for Java, Rust and WebAssembly (needs a menu decision: no Tools submenu exists for Rust or WebAssembly), Java errors in `.kotlinproj` builds, and C/C++ CodeLens (T63).
 
 ## Checks performed (2026-11-21, this machine)
 

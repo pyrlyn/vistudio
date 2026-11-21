@@ -297,8 +297,6 @@ namespace Vistudio
     /// </summary>
     internal sealed class RustLaunchCodeLens : LaunchCodeLens
     {
-        private static int cargoRunning;
-
         internal RustLaunchCodeLens(bool debug) : base(LanguageCatalog.Rust, debug) { }
 
         protected override string RunWithoutProjectDescription => "cargo run in the Rust Output pane";
@@ -306,29 +304,129 @@ namespace Vistudio
         protected override async Task RunWithoutProjectAsync(string path, EnvDTE.DTE dte)
         {
             var client = (RustLanguageClient)await LspLensLanguage.Rust.ClientAsync();
-            // The program outlives the click: its run is not tied to the lens command's token.
-            await CargoRunAsync(client.Output, path, CancellationToken.None);
-        }
-
-        private async Task CargoRunAsync(LanguageEnvironment output, string path, CancellationToken token)
-        {
+            var output = client.Output;
             await output.ShowOutputAsync();
             if (Debug) output.Log("Debugging needs a Rust project (.rustproj) around " + path + "; running without the debugger.");
             var command = RustCargo.RunCommand(path);
             if (command == null) { output.Log("No Cargo.toml was found above " + path + "."); return; }
-            var cargo = ToolLocator.Find(new[] { "cargo" }) ?? ToolLocator.Find(new[] { "cargo" }, LanguageProjectDefaults.InstallFolders(LanguageCatalog.Rust));
-            if (cargo == null) { output.Log("cargo was not found on PATH or in %USERPROFILE%\\.cargo\\bin."); return; }
-            if (Interlocked.Exchange(ref cargoRunning, 1) == 1) { output.Log("cargo run is already running; wait for it to finish."); return; }
-            try
-            {
-                var arguments = ZigArguments.Join(command.Value.Arguments);
-                output.Log("> cargo " + arguments + "  (in " + command.Value.Folder + ")");
-                var exit = await OwnedProcess.RunAsync(ProcessCommands.CreateRedirected(cargo, arguments, command.Value.Folder), output.Log, token).ConfigureAwait(false);
-                output.Log("cargo exited with code " + exit + ".");
-            }
-            catch (OperationCanceledException) { output.Log("cargo run canceled."); }
-            catch (Exception e) { output.Log("cargo run: " + e.Message); }
-            finally { Volatile.Write(ref cargoRunning, 0); }
+            // The program outlives the click: its run is not tied to the lens command's token.
+            await Cargo.RunAsync(output, command.Value.Folder, command.Value.Arguments, output.Log, CancellationToken.None);
         }
     }
-}
+
+    [VisualStudioContribution]
+    internal sealed class RustRunTestCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Rust run test") { Priority = 100 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(RustTestCodeLens.TestOf(codeElement, codeElementContext) != null ? new RustTestCodeLens(debug: false) : null);
+    }
+
+    [VisualStudioContribution]
+    internal sealed class RustDebugTestCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Rust debug test") { Priority = 101 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(RustTestCodeLens.TestOf(codeElement, codeElementContext) != null ? new RustTestCodeLens(debug: true) : null);
+    }
+
+    /// <summary>
+    /// "Run test" / "Debug test" above a Rust test function (<c>#[test]</c>, <c>#[tokio::test]</c>, ...), as Dart has above its
+    /// tests. The element comes from rust-analyzer's document symbols (<c>tests::adds</c>); <see cref="RustSourceScanner.Tests"/>
+    /// says which functions are tests. Run: <c>cargo test [target] -- &lt;crate path&gt; --exact</c> in the Rust pane. Debug:
+    /// <c>cargo test --no-run --message-format=json</c>, then the test program cargo reports, started under Visual Studio's
+    /// native debugger with <c>&lt;crate path&gt; --exact --nocapture</c> in the package folder (MSVC targets write PDBs).
+    /// </summary>
+    internal sealed class RustTestCodeLens : InvokableCodeLens
+    {
+        private static readonly System.Text.RegularExpressions.Regex Ordinal = new System.Text.RegularExpressions.Regex(@"#\d+$");
+        private readonly bool debug;
+
+        internal RustTestCodeLens(bool debug) => this.debug = debug;
+
+        /// <summary>The test a Rust function element stands for, or null when it is not a test (or not Rust).</summary>
+        internal static RustTest? TestOf(CodeElement element, CodeElementContext context)
+        {
+            if (LspLensLanguage.For(element) != LspLensLanguage.Rust) return null;
+            var parts = element.UniqueIdentifier?.Split('|');
+            if (parts == null || parts.Length != 4 || parts[2] != "Function") return null;
+            var path = Ordinal.Replace(parts[3], "");
+            return RustSourceScanner.Tests(context.Range.Document.Text.CopyToString()).FirstOrDefault(t => t.Path == path);
+        }
+
+        public override void Dispose() { }
+
+        public override Task<CodeLensLabel> GetLabelAsync(CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult(new CodeLensLabel
+            {
+                Text = debug ? "Debug test" : "Run test",
+                Tooltip = debug ? "Build this test with cargo and debug it in the Visual Studio native debugger." : "Run this test with cargo test; output in the Rust pane.",
+            });
+
+        public override async Task ExecuteAsync(CodeElementContext codeElementContext, IClientContext clientContext, CancellationToken cancelToken)
+        {
+            var path = LspLensLanguage.PathOf(codeElementContext.Range.Document.Uri);
+            var text = codeElementContext.Range.Document.Text.CopyToString();
+            var start = codeElementContext.Range.Start;
+            var end = codeElementContext.Range.End;
+            var test = RustSourceScanner.Tests(text).FirstOrDefault(t => t.NameEnd == end) ?? RustSourceScanner.Tests(text).FirstOrDefault(t => t.NameStart >= start && t.NameEnd <= end);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
+            var dte = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<EnvDTE.DTE, EnvDTE.DTE>();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
+            dte.ExecuteCommand("File.SaveAll");
+            var output = ((RustLanguageClient)await LspLensLanguage.Rust.ClientAsync()).Output;
+            await output.ShowOutputAsync();
+            if (test == null) { output.Log("No Rust test was found at this lens; edit the file or wait for rust-analyzer, then try again."); return; }
+            var command = RustCargo.TestCommand(path, test.Path);
+            if (command == null) { output.Log("No Cargo.toml was found above " + path + "."); return; }
+            if (!debug)
+            {
+                await Cargo.RunAsync(output, command.Folder, command.RunArguments, output.Log, CancellationToken.None);
+                return;
+            }
+            // Build the test program; stdout carries JSON (artifacts, compiler messages), stderr cargo's own progress.
+            var json = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            var exit = await Cargo.RunAsync(output, command.Folder, command.BuildArguments, line =>
+            {
+                json.Enqueue(line);
+                if (RustCargo.RenderedMessage(line) is string rendered) output.Log(rendered);
+            }, CancellationToken.None);
+            if (exit != 0) return; // the errors are in the pane
+            var program = RustCargo.TestExecutable(json, command.CrateRoot);
+            if (program == null) { output.Log("cargo built no test program for " + command.CrateRoot + "."); return; }
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var arguments = ZigArguments.Join(command.ProgramArguments);
+            output.Log("Debug (native): " + program + " " + arguments + "  (in " + command.Folder + ")");
+            try { Languages.NativeDebugLaunch.Start(ServiceProvider.GlobalProvider, program, arguments, command.Folder, noDebug: false); }
+            catch (Exception e) when (e is InvalidOperationException || e is System.Runtime.InteropServices.COMException) { output.Log("Debug test: " + e.Message); }
+        }
+    }
+
+    /// <summary>One cargo command at a time from the Rust lenses, output in the Rust pane.</summary>
+    internal static class Cargo
+    {
+        private static int running;
+
+        /// <summary>Runs cargo with <paramref name="arguments"/> in <paramref name="folder"/>; standard output goes to <paramref name="onOutput"/>, errors to the pane. Returns the exit code, or -1 when it did not run.</summary>
+        internal static async Task<int> RunAsync(LanguageEnvironment output, string folder, IReadOnlyList<string> arguments, Action<string> onOutput, CancellationToken token)
+        {
+            var cargo = ToolLocator.Find(new[] { "cargo" }) ?? ToolLocator.Find(new[] { "cargo" }, LanguageProjectDefaults.InstallFolders(LanguageCatalog.Rust));
+            if (cargo == null) { output.Log("cargo was not found on PATH or in %USERPROFILE%\\.cargo\\bin."); return -1; }
+            if (Interlocked.Exchange(ref running, 1) == 1) { output.Log("A cargo command from a lens is already running; wait for it to finish."); return -1; }
+            try
+            {
+                var joined = ZigArguments.Join(arguments);
+                output.Log("> cargo " + joined + "  (in " + folder + ")");
+                var exit = await OwnedProcess.RunAsync(ProcessCommands.CreateRedirected(cargo, joined, folder), onOutput, output.Log, token).ConfigureAwait(false);
+                output.Log("cargo exited with code " + exit + ".");
+                return exit;
+            }
+            catch (OperationCanceledException) { output.Log("cargo canceled."); return -1; }
+            catch (Exception e) { output.Log("cargo: " + e.Message); return -1; }
+            finally { Volatile.Write(ref running, 0); }
+        }
+    }}

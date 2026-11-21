@@ -86,17 +86,22 @@ namespace Vistudio.Zig
         private async Task UpdateAllAsync(ITextDocumentSnapshot document, CancellationToken cancellationToken)
         {
             if (!ZigCodeElement.IsZig(document.Uri) || !ZigSettings.Load().CodeLens) return;
-            var functions = ZigSourceScanner.Functions(document.Text.CopyToString());
-            var identifiers = ZigCodeElement.Identifiers(functions);
+            var declarations = ZigSourceScanner.Scan(document.Text.CopyToString()).Declarations;
+            var functions = declarations.Where(d => d.Kind == ZigDeclarationKind.Function).ToList();
+            var tests = declarations.Where(d => d.Kind == ZigDeclarationKind.Test).ToList();
             var tags = new List<TaggedTrackingTextRange<CodeLensTag>>();
-            for (var i = 0; i < functions.Count; i++)
+            void Tag(ZigDeclaration declaration, string identifier, string description)
             {
-                var function = functions[i];
-                var tag = new CodeLensTag(CodeElementKind.KnownValues.Method) { Description = function.QualifiedName, UniqueIdentifier = identifiers[i] };
+                var tag = new CodeLensTag(CodeElementKind.KnownValues.Method) { Description = description, UniqueIdentifier = identifier };
                 // The range ends at the name: the lenses query the server at the name's last character.
                 tags.Add(new TaggedTrackingTextRange<CodeLensTag>(
-                    new TextRange(document, function.StartOffset, function.NameEnd - function.StartOffset), TextRangeTrackingMode.ExtendForwardAndBackward, tag));
+                    new TextRange(document, declaration.StartOffset, declaration.NameEnd - declaration.StartOffset), TextRangeTrackingMode.ExtendForwardAndBackward, tag));
             }
+            var identifiers = ZigCodeElement.Identifiers(functions);
+            for (var i = 0; i < functions.Count; i++) Tag(functions[i], identifiers[i], functions[i].QualifiedName);
+            // `test "name" { }` blocks get Run test / Debug test (identity vistudiozig|Test|name[#n]).
+            var testIdentifiers = ZigCodeElement.TestIdentifiers(tests);
+            for (var i = 0; i < tests.Count; i++) Tag(tests[i], testIdentifiers[i], "test " + tests[i].Name);
             await UpdateTagsAsync(new[] { new TextRange(document, 0, document.Length) }, tags, cancellationToken);
         }
 
@@ -117,6 +122,20 @@ namespace Vistudio.Zig
             CodeLensElement.WithOrdinals(functions.Select(f => Prefix + f.QualifiedName));
 
         internal static bool IsOurs(CodeElement element) => element.UniqueIdentifier?.StartsWith(Prefix, StringComparison.Ordinal) == true;
+
+        private const string TestPrefix = "vistudiozig|Test|";
+
+        internal static IReadOnlyList<string> TestIdentifiers(IReadOnlyList<ZigDeclaration> tests) =>
+            CodeLensElement.WithOrdinals(tests.Select(t => TestPrefix + t.Name));
+
+        internal static bool IsTest(CodeElement element) => element.UniqueIdentifier?.StartsWith(TestPrefix, StringComparison.Ordinal) == true;
+
+        /// <summary>The test block under a tagged range, rescanned from the current text.</summary>
+        internal static ZigDeclaration? TestAt(TextRange range)
+        {
+            var tests = ZigSourceScanner.Scan(range.Document.Text.CopyToString()).Declarations.Where(d => d.Kind == ZigDeclarationKind.Test).ToList();
+            return tests.FirstOrDefault(t => t.NameEnd == range.End) ?? tests.FirstOrDefault(t => t.StartOffset >= range.Start && t.NameEnd <= range.End);
+        }
 
         /// <summary>A top-level <c>main</c> (no container in its qualified name), the program's entry point.</summary>
         internal static bool IsMain(CodeElement element) => IsMain(element.UniqueIdentifier);
@@ -265,6 +284,82 @@ namespace Vistudio.Zig
             if (build.IsBusy) { environment.Log("A Zig command is already running; wait for it or use Tools > Zig > Cancel."); return; }
             try { await build.RunFileAsync(path); } // the run's output and exit code go to the Zig pane
             catch (Exception e) when (e is InvalidOperationException || e is System.IO.IOException || e is ArgumentException) { environment.Log("zig run: " + e.Message); }
+        }
+    }
+
+    [VisualStudioContribution]
+    internal sealed class ZigRunTestCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Zig run test") { Priority = 100 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(ZigCodeElement.IsTest(codeElement) ? new ZigTestCodeLens(debug: false) : null);
+    }
+
+    [VisualStudioContribution]
+    internal sealed class ZigDebugTestCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Zig debug test") { Priority = 101 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(ZigCodeElement.IsTest(codeElement) ? new ZigTestCodeLens(debug: true) : null);
+    }
+
+    /// <summary>
+    /// "Run test" / "Debug test" above a Zig <c>test</c> block, as Dart has above its tests. Run: <c>zig test &lt;file&gt;
+    /// --test-filter &lt;name&gt;</c> in the Zig pane (compile errors in the Error List). Debug: the same with
+    /// <c>--test-no-exec -femit-bin=zig-out\vistudio\test-&lt;file&gt;.exe</c>, then that program under Visual Studio's native
+    /// debugger (zig writes its PDB next to it). Zig matches the filter as a substring of the test's full name, so tests
+    /// whose names contain this one run too; an unnamed <c>test { }</c> runs every test of the file.
+    /// </summary>
+    internal sealed class ZigTestCodeLens : InvokableCodeLens
+    {
+        private readonly bool debug;
+
+        internal ZigTestCodeLens(bool debug) => this.debug = debug;
+
+        public override void Dispose() { }
+
+        public override Task<CodeLensLabel> GetLabelAsync(CodeElementContext codeElementContext, CancellationToken token)
+        {
+            var test = ZigCodeElement.TestAt(codeElementContext.Range);
+            var which = test == null || test.Name.Length == 0 ? "the tests of this file" : "test \"" + test.Name + "\"";
+            return Task.FromResult(new CodeLensLabel
+            {
+                Text = debug ? "Debug test" : "Run test",
+                Tooltip = debug ? "Build " + which + " with zig test and debug it in the Visual Studio native debugger." : "Run " + which + " with zig test; output in the Zig pane.",
+            });
+        }
+
+        public override async Task ExecuteAsync(CodeElementContext codeElementContext, IClientContext clientContext, CancellationToken cancelToken)
+        {
+            var path = codeElementContext.Range.Document.Uri.IsFile ? codeElementContext.Range.Document.Uri.LocalPath : codeElementContext.Range.Document.Uri.ToString();
+            var filter = ZigCodeElement.TestAt(codeElementContext.Range)?.Name;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
+            var dte = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<EnvDTE.DTE, EnvDTE.DTE>();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
+            dte.ExecuteCommand("File.SaveAll");
+            var model = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<SComponentModel, IComponentModel>();
+            var environment = model.GetService<ZigEnvironment>();
+            var build = model.GetService<ZigBuildService>();
+            if (build.IsBusy) { await environment.ShowOutputAsync(); environment.Log("A Zig command is already running; wait for it or use Tools > Zig > Cancel."); return; }
+            try
+            {
+                if (!debug) { await build.TestFileAsync(path, filter); return; }
+                var root = await build.FindBuildRootAsync(path) ?? System.IO.Path.GetDirectoryName(path)!;
+                var program = ZigCommandFactory.TestBinary(root, path);
+                if (!await build.TestFileAsync(path, filter, program)) return; // compile errors are in the pane and the Error List
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                environment.Log("Debug (native): " + program);
+                Languages.NativeDebugLaunch.Start(ServiceProvider.GlobalProvider, program, "", root, noDebug: false);
+            }
+            catch (Exception e) when (e is InvalidOperationException || e is System.IO.IOException || e is ArgumentException || e is System.Runtime.InteropServices.COMException)
+            {
+                await environment.ShowOutputAsync();
+                environment.Log("zig test: " + e.Message);
+            }
         }
     }
 

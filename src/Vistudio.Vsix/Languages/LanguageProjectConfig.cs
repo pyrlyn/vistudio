@@ -108,19 +108,9 @@ namespace Vistudio.Languages
         private void LaunchNative(LanguageProjectFile metadata, string program, bool noDebug)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            var debugger = package.GetService<SVsShellDebugger, IVsDebugger4>();
-            var target = new VsDebugTargetInfo4
-            {
-                dlo = (uint)DEBUG_LAUNCH_OPERATION.DLO_CreateProcess,
-                bstrExe = program,
-                bstrArg = Core.Zig.ZigArguments.Join(metadata.DebugArguments),
-                bstrCurDir = metadata.WorkingDirectory,
-                guidLaunchDebugEngine = VSConstants.DebugEnginesGuids.NativeOnly_guid,
-                LaunchFlags = noDebug ? (uint)__VSDBGLAUNCHFLAGS.DBGLAUNCH_NoDebug : 0,
-            };
-            var results = new VsDebugTargetProcessInfo[1];
-            Log((noDebug ? "Run: " : "Debug (native): ") + program + (target.bstrArg.Length == 0 ? "" : " " + target.bstrArg));
-            debugger.LaunchDebugTargets4(1, new[] { target }, results);
+            var arguments = Core.Zig.ZigArguments.Join(metadata.DebugArguments);
+            Log((noDebug ? "Run: " : "Debug (native): ") + program + (arguments.Length == 0 ? "" : " " + arguments));
+            NativeDebugLaunch.Start(package, program, arguments, metadata.WorkingDirectory, noDebug);
         }
 
         private int LaunchDart(LanguageProjectFile metadata, bool noDebug)
@@ -154,6 +144,26 @@ namespace Vistudio.Languages
             return Directory.EnumerateFiles(sources, "*.java", SearchOption.AllDirectories)
                 .OrderBy(f => Path.GetFileName(f).Equals("Main.java", StringComparison.OrdinalIgnoreCase) ? 0 : 1).ThenBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault(f => File.ReadAllText(f).Contains("static void main("));
+        }
+    }
+
+    /// <summary>Starts a program with PDBs under Visual Studio's native debug engine (projects, and the Rust/Zig Debug test lenses).</summary>
+    internal static class NativeDebugLaunch
+    {
+        internal static void Start(IServiceProvider services, string program, string arguments, string workingDirectory, bool noDebug)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var debugger = (IVsDebugger4)services.GetService(typeof(SVsShellDebugger)) ?? throw new InvalidOperationException("The Visual Studio debugger is unavailable.");
+            var target = new VsDebugTargetInfo4
+            {
+                dlo = (uint)DEBUG_LAUNCH_OPERATION.DLO_CreateProcess,
+                bstrExe = program,
+                bstrArg = arguments,
+                bstrCurDir = workingDirectory,
+                guidLaunchDebugEngine = VSConstants.DebugEnginesGuids.NativeOnly_guid,
+                LaunchFlags = noDebug ? (uint)__VSDBGLAUNCHFLAGS.DBGLAUNCH_NoDebug : 0,
+            };
+            debugger.LaunchDebugTargets4(1, new[] { target }, new VsDebugTargetProcessInfo[1]);
         }
     }
 }

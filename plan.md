@@ -43,7 +43,16 @@ Kotlin syntax highlighting, external LSP integration, Gradle builds, and JVM deb
 | T72 | in progress | P1 | 4 | 80% | Anthropic / Claude Fable 5.2 |
 | T73 | in progress | P1 | 3 | 90% | Anthropic / Claude Fable 5.2 |
 | T74 | in progress | P1 | 4 | 80% | Anthropic / Claude Opus 5.5 |
+| T75 | in progress | P1 | 3 | 80% | Anthropic / Claude Opus 5.5 |
 
+### T75. Run test / Debug test lenses for Rust and Zig
+
+Creator request (2026-11-21), the open "CodeLens: run tests" cells of T74 for Rust and Zig, following Dart's Run test / Debug test lenses and the native-engine launch of language projects.
+
+- Zig: `test` blocks are CodeLens elements (`vistudiozig|Test|name`); Run test runs `ZigBuildService.TestFileAsync` (`zig test <file> --test-filter <name>`, Zig pane, Error List); Debug test builds `zig-out\vistudio\test-<file>.exe` (`--test-no-exec -femit-bin=`) and starts it with `NativeDebugLaunch` (taken out of `LanguageProjectConfig.LaunchNative`).
+- Rust: the rust-analyzer function elements that `RustSourceScanner.Tests` finds after a `#[test]` / `#[x::test]` attribute; `RustCargo.TestCommand` adds the target (`--lib`, `--bin`, `--test`, `--example`, `--bench`) and the module path from the file's place in the package; Debug test reads the test program from `cargo test --no-run --message-format=json` (`RustCargo.TestExecutable`) and starts it under the native debugger with `<path> --exact --nocapture`. The cargo runner of the lenses is shared (`Cargo.RunAsync`).
+
+Checks: `TestLensTests` in `--rust-wasm` and `--zig` and the default run (discovery, commands for each package layout, artifact selection, rendered compiler messages, zig arguments and quoting). Run 2026-11-21: `build.ps1` Release PASS (default run 1943 assertions), `--rust-wasm` 137, `--zig` 130, `--feature-matrix` 223, `--structure` 350, `--packages none` 530, and the Dart, CodeLens, JVM, Bazel, mise, diagnostics and hot reload unit suites, all PASS. Not checked: a real zig or cargo run and a debug session from the lens in Visual Studio (neither tool is installed here).
 ### T74. Feature parity across the eight languages
 
 Creator request (2026-11-21): a language × feature matrix; carry features that some languages have over to the others with the existing pattern, extracting a shared interface or base class first when only one language has it; explicit stubs with the reason where the platform cannot support a feature; tests for every language; the updated matrix attached.
@@ -60,7 +69,7 @@ Done in code (details, before/after and every stub: [docs/feature-matrix.md](doc
 
 Checks (2026-11-21): `build.ps1` Release PASS (default run 1928 assertions, was 1602; VSIX and icon checks); `--structure` 352, `--feature-matrix` 225, `--packages none` 530, `--rust-wasm` 125, `--zig` 125, `--dart none` 96, `--codelens` 121, `--jvm-languages` 177, `--bazel` 120, `--mise` 74, `--diagnostics none` 46, `--hot-reload none` 55, all PASS; live zig, rust-analyzer, wat_server and mise parts skipped (not installed).
 
-Open: Visual Studio acceptance of all of the above (only unit checks ran), test lenses for Rust and Zig, Restart Language Server for Java/Rust/WebAssembly (needs a menu decision), Java errors in `.kotlinproj` builds, C/C++ CodeLens (T63).
+Open: Visual Studio acceptance of all of the above (only unit checks ran), Restart Language Server for Java/Rust/WebAssembly (needs a menu decision), Java errors in `.kotlinproj` builds, C/C++ CodeLens (T63).
 ### T73. Kotlin/JVM F5 within the Kotlin server's 30 s attach wait
 
 Requested (through the session that works on T72): make F5 reach the program when Gradle needs longer than the Kotlin server's debugger waits for the JVM, and stop leaving a JVM behind when the attach fails.

@@ -45,6 +45,26 @@ namespace Vistudio.Core.Zig
             return Create(zig, arguments, root);
         }
 
+        /// <summary>
+        /// <c>zig test &lt;file&gt;</c> for the Run test / Debug test lenses. <paramref name="filter"/> (a test's name; zig matches
+        /// it as a substring of the full test name) is left out for an unnamed <c>test { }</c>, which runs the file's tests.
+        /// With <paramref name="emitBinary"/> the test program is only built (<c>--test-no-exec -femit-bin=</c>), with its PDB,
+        /// for the native debugger.
+        /// </summary>
+        public static ProcessStartInfo Test(string zig, string file, string root, string? libDirectory, string flags, string? filter, string? emitBinary = null)
+        {
+            var arguments = new List<string> { "test", "--color", "off", file };
+            AddLibrary(arguments, libDirectory);
+            arguments.AddRange(ZigArguments.Split(flags));
+            if (!string.IsNullOrEmpty(filter)) { arguments.Add("--test-filter"); arguments.Add(filter!); }
+            if (emitBinary != null) { arguments.Add("--test-no-exec"); arguments.Add("-femit-bin=" + emitBinary); }
+            return Create(zig, arguments, root);
+        }
+
+        /// <summary>The program <see cref="Test"/> builds for debugging a test of <paramref name="file"/>: <c>zig-out\vistudio\test-&lt;file&gt;.exe</c> under <paramref name="root"/>.</summary>
+        public static string TestBinary(string root, string file) =>
+            Path.Combine(root, "zig-out", "vistudio", "test-" + Path.GetFileNameWithoutExtension(file) + ".exe");
+
         /// <summary><c>zig build [step]</c> in the folder holding build.zig.</summary>
         public static ProcessStartInfo Build(string zig, string root, string? step, string? libDirectory, string flags)
         {

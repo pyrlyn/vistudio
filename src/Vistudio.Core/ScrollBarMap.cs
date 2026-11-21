@@ -8,7 +8,7 @@ namespace Vistudio.Core
 
     /// <summary>
     /// Maps Vistudio scroll bar settings to Visual Studio editor option names
-    /// (<c>DefaultTextViewHostOptions</c>) applied locally to Kotlin and Java views.
+    /// (<c>DefaultTextViewHostOptions</c>) applied locally to the views of every <see cref="Editor.EditorLanguage"/>.
     /// </summary>
     public static class ScrollBarMap
     {
@@ -26,7 +26,7 @@ namespace Vistudio.Core
             width == ScrollBarMapWidth.Narrow ? 33.0 : width == ScrollBarMapWidth.Wide ? 83.0 : width == ScrollBarMapWidth.Off ? 0.0 : 58.0;
 
         /// <summary>Options to set on the view; every other name in <see cref="OptionNames"/> is cleared (inherited).</summary>
-        public static IReadOnlyDictionary<string, object> Resolve(KotlinSettings settings)
+        public static IReadOnlyDictionary<string, object> Resolve(Editor.IEditorSettings settings)
         {
             var options = new Dictionary<string, object>();
             switch (settings.ScrollBarMode)

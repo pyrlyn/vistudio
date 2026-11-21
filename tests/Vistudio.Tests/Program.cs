@@ -55,12 +55,25 @@ internal static class Program
                 Console.WriteLine("PASS: " + assertions + " assertions (project templates).");
                 return 0;
             }
+            if (args.Length == 1 && args[0] == "--feature-matrix")
+            {
+                // The language × feature table of docs/feature-matrix.md, printed from Core's LanguageFeatureMatrix after its checks.
+                var failures = new System.Collections.Generic.List<string>();
+                FeatureMatrixTests.Run((condition, message) => { assertions++; if (!condition) failures.Add(message); });
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                Console.Write(Vistudio.Core.Languages.LanguageFeatureMatrix.ToMarkdown());
+                foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (feature matrix).");
+                return failures.Count == 0 ? 0 : 1;
+            }
             if (args.Length == 1 && args[0] == "--structure")
             {
                 var failures = new System.Collections.Generic.List<string>();
                 StructureTests.Run((condition, message) => { assertions++; if (!condition) failures.Add(message); });
+                EditorLanguageTests.Run((condition, message) => { assertions++; if (!condition) failures.Add(message); });
+                FeatureMatrixTests.Run((condition, message) => { assertions++; if (!condition) failures.Add(message); });
                 foreach (var failure in failures) Console.WriteLine("FAIL: " + failure);
-                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (structure).");
+                Console.WriteLine((failures.Count == 0 ? "PASS: " : "FAIL: " + failures.Count + " of ") + assertions + " assertions (structure, editor features of every language).");
                 return failures.Count == 0 ? 0 : 1;
             }
             if (args.Length == 1 && args[0] == "--zig")
@@ -152,6 +165,7 @@ internal static class Program
                 Action<bool, string> collect = (condition, message) => { assertions++; if (!condition) failures.Add(message); };
                 LanguageTests.Run(collect);
                 LanguageProjectTests.Run(Path.Combine(root, "language-projects"), collect);
+                ToolDiagnosticTests.Run(collect);
                 PackagesPubTests.Run(Path.Combine(root, "pub"), collect);
                 PackagesCargoTests.Run(Path.Combine(root, "cargo"), collect);
                 PackagesConanTests.Run(Path.Combine(root, "conan"), collect);
@@ -257,6 +271,9 @@ internal static class Program
             CodeLensTests.Run(Check);
             CodeLensKindsTests.Run(Check, root);
             StructureTests.Run(Check);
+            EditorLanguageTests.Run(Check);
+            ToolDiagnosticTests.Run(Check);
+            FeatureMatrixTests.Run(Check);
             ZigTests.Run(root, Check);
             DartTests.Run(root, Check);
             FlutterPreviewTests.Run(root, Check);

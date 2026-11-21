@@ -6,7 +6,7 @@ namespace Vistudio.Core.Dart
     /// Dart and Flutter settings (Tools &gt; Options &gt; Dart). Stored in their own file, independent of the Kotlin and
     /// Zig settings, and overridden per window by <c>vistudio.dart.*</c> keys in the workspace's <c>.vs\settings.json</c>.
     /// </summary>
-    public sealed class DartSettings : StoredSettings<DartSettings>
+    public sealed class DartSettings : StoredSettings<DartSettings>, Editor.IEditorSettings
     {
         /// <summary>Flutter SDK folder (contains <c>bin\flutter.bat</c>). Empty searches PATH. Its bundled Dart SDK is used when <see cref="DartSdkPath"/> is empty.</summary>
         public string FlutterSdkPath { get; set; } = "";
@@ -29,6 +29,13 @@ namespace Vistudio.Core.Dart
         /// <summary>Stop in SDK and package sources while stepping (DAP <c>debugSdkLibraries</c> / <c>debugExternalPackageLibraries</c>).</summary>
         public bool DebugLibraries { get; set; }
         public bool CodeLens { get; set; } = true;
+
+        // Editor display (IEditorSettings), the same settings Kotlin has under Tools > Options > Kotlin > Editor.
+        public bool RainbowBraces { get; set; } = true;
+        public ScrollBarMode ScrollBarMode { get; set; } = ScrollBarMode.Inherit;
+        public ScrollBarMapWidth ScrollBarMapWidth { get; set; } = ScrollBarMapWidth.Medium;
+        public bool ScrollBarMapPreview { get; set; } = true;
+        public InlayHintsDisplay InlayHintsDisplay { get; set; } = InlayHintsDisplay.Always;
 
         /// <summary>Flutter widget previews: the Preview CodeLens, the Preview Widget commands and the Flutter Widget Preview window.</summary>
         public bool WidgetPreview { get; set; } = true;

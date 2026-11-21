@@ -170,10 +170,62 @@ namespace Vistudio.Languages
         /// Shows why a project's build could not start as one Error List entry for that project, or removes the entry
         /// (<paramref name="message"/> null) when its next build starts.
         /// </summary>
+        private ErrorListProvider BuildProblems
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return buildProblems ??= new ErrorListProvider(this) { ProviderGuid = new Guid("0b5f6b84-6a3e-4f5c-9a43-7d2c1e8f5b61"), ProviderName = "Vistudio Projects" };
+            }
+        }
+
+        private readonly Dictionary<string, List<ErrorTask>> buildDiagnosticsByProject = new Dictionary<string, List<ErrorTask>>(StringComparer.OrdinalIgnoreCase);
+        private const int MaxBuildDiagnostics = 1000;
+
+        /// <summary>
+        /// Replaces a project's located build errors and warnings (<see cref="ToolDiagnosticParser"/>) in the Error List;
+        /// an empty list clears them when its next build starts. Double-click opens the file at the location.
+        /// </summary>
+        internal void ReportBuildDiagnostics(IVsHierarchy hierarchy, LanguageProjectFile project, IReadOnlyList<BuildDiagnostic> diagnostics)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (buildDiagnosticsByProject.TryGetValue(project.FilePath, out var previous))
+            {
+                foreach (var task in previous) { task.Navigate -= NavigateToDiagnostic; BuildProblems.Tasks.Remove(task); }
+                buildDiagnosticsByProject.Remove(project.FilePath);
+            }
+            if (diagnostics.Count == 0) return;
+            var tasks = new List<ErrorTask>();
+            foreach (var diagnostic in diagnostics.Take(MaxBuildDiagnostics))
+            {
+                var task = new ErrorTask
+                {
+                    Category = TaskCategory.BuildCompile,
+                    ErrorCategory = diagnostic.Severity == BuildDiagnosticSeverity.Warning ? TaskErrorCategory.Warning : TaskErrorCategory.Error,
+                    Text = diagnostic.Message, Document = diagnostic.File, Line = diagnostic.Line, Column = diagnostic.Column,
+                    HierarchyItem = hierarchy, CanDelete = false,
+                };
+                task.Navigate += NavigateToDiagnostic;
+                BuildProblems.Tasks.Add(task);
+                tasks.Add(task);
+            }
+            buildDiagnosticsByProject[project.FilePath] = tasks;
+            if (diagnostics.Count > MaxBuildDiagnostics)
+                Log(project.Name + ": " + diagnostics.Count + " build messages; the Error List shows the first " + MaxBuildDiagnostics + ", the Build pane has all of them.");
+        }
+
+        private void NavigateToDiagnostic(object sender, EventArgs args)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (!(sender is ErrorTask task) || string.IsNullOrEmpty(task.Document)) return;
+            try { DocumentNavigation.Open(this, task.Document, task.Line, task.Column); }
+            catch (Exception e) when (e is System.IO.IOException || e is InvalidOperationException || e is COMException) { Log(task.Document + ": " + e.Message); }
+        }
+
         internal void ReportBuildProblem(IVsHierarchy hierarchy, LanguageProjectFile project, string? message)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            buildProblems ??= new ErrorListProvider(this) { ProviderGuid = new Guid("0b5f6b84-6a3e-4f5c-9a43-7d2c1e8f5b61"), ProviderName = "Vistudio Projects" };
+            var buildProblems = BuildProblems;
             if (buildProblemByProject.TryGetValue(project.FilePath, out var previous))
             {
                 buildProblems.Tasks.Remove(previous);

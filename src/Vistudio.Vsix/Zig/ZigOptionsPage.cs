@@ -37,8 +37,19 @@ namespace Vistudio.Zig
         public string LanguageServerArguments { get => settings.LanguageServerArguments; set => settings.LanguageServerArguments = value; }
         [Category("Language server (ZLS)"), DisplayName("ZLS diagnostics"), Description("Also show ZLS's own diagnostics. Off by default while ast-check runs, so parse errors are not reported twice.")]
         public bool LanguageServerDiagnostics { get => settings.LanguageServerDiagnostics; set => settings.LanguageServerDiagnostics = value; }
-        [Category("Editor"), DisplayName("CodeLens"), Description("Reference counts and signatures above Zig functions. Reopen editors after changing.")]
+        [Category("Editor"), DisplayName("CodeLens"), Description("Reference counts and signatures above Zig functions, Run | Debug above main. Reopen editors after changing.")]
         public bool CodeLens { get => settings.CodeLens; set => settings.CodeLens = value; }
+        // Editor display (IEditorSettings), the same options as Tools > Options > Kotlin > Editor.
+        [Category("Editor"), DisplayName("Rainbow braces"), Description("Color matching curly braces in Zig editors (Fonts and Colors > Rainbow brace 1-6). Reopen editors after changing this setting.")]
+        public bool RainbowBraces { get => settings.RainbowBraces; set => settings.RainbowBraces = value; }
+        [Category("Editor"), DisplayName("Scroll bar mode"), Description("Vertical scroll bar in Zig editors. Map shows a minimap of the file colored like the editor, with the visible area, changes, find results, bookmarks, breakpoints and errors. Inherit keeps Text Editor > All Languages > Scroll Bars. Applies to open editors.")]
+        public Vistudio.Core.ScrollBarMode ScrollBarMode { get => settings.ScrollBarMode; set => settings.ScrollBarMode = value; }
+        [Category("Editor"), DisplayName("Scroll bar map width"), Description("Source overview width when Scroll bar mode is Map. Off keeps map mode marks without the code image.")]
+        public Vistudio.Core.ScrollBarMapWidth ScrollBarMapWidth { get => settings.ScrollBarMapWidth; set => settings.ScrollBarMapWidth = value; }
+        [Category("Editor"), DisplayName("Scroll bar map preview"), Description("Show a code preview tooltip when hovering the map. Used when Scroll bar mode is Map.")]
+        public bool ScrollBarMapPreview { get => settings.ScrollBarMapPreview; set => settings.ScrollBarMapPreview = value; }
+        [Category("Editor"), DisplayName("Show inlay hints"), Description("When Zig editors show the language server's inlay hints. Visual Studio's own default shows them only while Alt+F1 is held. Applies to open editors.")]
+        public Vistudio.Core.InlayHintsDisplay InlayHintsDisplay { get => settings.InlayHintsDisplay; set => settings.InlayHintsDisplay = value; }
 
         public override void LoadSettingsFromStorage() => settings = ZigSettings.LoadGlobal();
 
@@ -46,6 +57,7 @@ namespace Vistudio.Zig
         {
             settings.Save();
             ZigEnvironment.OnSettingsChanged();
+            EditorLanguages.OnSettingsChanged();
         }
 
         public override void ResetSettings() => settings = new ZigSettings();

@@ -37,19 +37,28 @@ namespace Vistudio.Languages
         // return quickly when nothing changed.
         protected override bool IsUpToDate() => false;
 
+        private const int MaxCollectedLines = 20000;
+
         protected override async Task<bool> RunAsync(string operation, Action<string> mirror, CancellationToken token)
         {
             await package.SaveAllAsync();
             await package.JoinableTaskFactory.SwitchToMainThreadAsync(token);
             var metadata = project.Metadata;
             package.ReportBuildProblem(project, metadata, null);
+            package.ReportBuildDiagnostics(project, metadata, Array.Empty<BuildDiagnostic>());
             string? problem = null;
-            var success = await package.RunCommandsAsync(metadata, operation, mirror, token, reason => problem = reason);
-            if (problem != null)
+            // Located compiler errors and warnings go to the Error List, as for Kotlin (Gradle), Zig and Dart builds.
+            var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            void Collect(string line)
             {
-                await package.JoinableTaskFactory.SwitchToMainThreadAsync(token);
-                package.ReportBuildProblem(project, metadata, problem);
+                if (lines.Count < MaxCollectedLines) lines.Enqueue(line);
+                mirror(line);
             }
+            var success = await package.RunCommandsAsync(metadata, operation, Collect, token, reason => problem = reason);
+            var diagnostics = operation == "clean" ? Array.Empty<BuildDiagnostic>() : ToolDiagnosticParser.Parse(lines, metadata.DirectoryPath);
+            await package.JoinableTaskFactory.SwitchToMainThreadAsync(token);
+            if (problem != null) package.ReportBuildProblem(project, metadata, problem);
+            package.ReportBuildDiagnostics(project, metadata, diagnostics);
             project.LastSuccessfulBuildUtc = success && operation != "clean" ? DateTime.UtcNow : (DateTime?)null;
             return success;
         }

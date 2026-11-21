@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Vistudio.Core
 {
-    public sealed class KotlinSettings
+    public sealed class KotlinSettings : Editor.IEditorSettings
     {
         public string LanguageServerPath { get; set; } = "";
         public string LanguageServerArguments { get; set; } = "--stdio";
@@ -33,6 +33,8 @@ namespace Vistudio.Core
         public bool ShowHiddenFiles { get; set; }
         /// <summary>When Kotlin and Java editors show inlay hints. Visual Studio's own default only shows them while Alt+F1 is held.</summary>
         public InlayHintsDisplay InlayHints { get; set; } = InlayHintsDisplay.Always;
+        // Kotlin's setting predates the shared interface and keeps its stored name (InlayHints / vistudio.kotlin.inlayHints).
+        InlayHintsDisplay Editor.IEditorSettings.InlayHintsDisplay => InlayHints;
         // Kotlin inlay hint kinds (see InlayHints.KotlinOptions). All on.
         public bool InlayHintsPropertyTypes { get; set; } = true;
         public bool InlayHintsLocalVariableTypes { get; set; } = true;

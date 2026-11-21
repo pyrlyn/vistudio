@@ -48,6 +48,17 @@ namespace Vistudio.Dart
         public string LanguageServerArguments { get => settings.LanguageServerArguments; set => settings.LanguageServerArguments = value; }
         [Category("Editor"), DisplayName("CodeLens"), Description("Run | Debug above main and tests, reference counts above functions and types. Reopen editors after changing.")]
         public bool CodeLens { get => settings.CodeLens; set => settings.CodeLens = value; }
+        // Editor display (IEditorSettings), the same options as Tools > Options > Kotlin > Editor.
+        [Category("Editor"), DisplayName("Rainbow braces"), Description("Color matching curly braces in Dart editors (Fonts and Colors > Rainbow brace 1-6). Reopen editors after changing this setting.")]
+        public bool RainbowBraces { get => settings.RainbowBraces; set => settings.RainbowBraces = value; }
+        [Category("Editor"), DisplayName("Scroll bar mode"), Description("Vertical scroll bar in Dart editors. Map shows a minimap of the file colored like the editor, with the visible area, changes, find results, bookmarks, breakpoints and errors. Inherit keeps Text Editor > All Languages > Scroll Bars. Applies to open editors.")]
+        public Vistudio.Core.ScrollBarMode ScrollBarMode { get => settings.ScrollBarMode; set => settings.ScrollBarMode = value; }
+        [Category("Editor"), DisplayName("Scroll bar map width"), Description("Source overview width when Scroll bar mode is Map. Off keeps map mode marks without the code image.")]
+        public Vistudio.Core.ScrollBarMapWidth ScrollBarMapWidth { get => settings.ScrollBarMapWidth; set => settings.ScrollBarMapWidth = value; }
+        [Category("Editor"), DisplayName("Scroll bar map preview"), Description("Show a code preview tooltip when hovering the map. Used when Scroll bar mode is Map.")]
+        public bool ScrollBarMapPreview { get => settings.ScrollBarMapPreview; set => settings.ScrollBarMapPreview = value; }
+        [Category("Editor"), DisplayName("Show inlay hints"), Description("When Dart editors show the language server's inlay hints. Visual Studio's own default shows them only while Alt+F1 is held. Applies to open editors.")]
+        public Vistudio.Core.InlayHintsDisplay InlayHintsDisplay { get => settings.InlayHintsDisplay; set => settings.InlayHintsDisplay = value; }
 
         [Category("Widget preview"), DisplayName("Enabled"), Description("Flutter widget previews (flutter widget-preview, Flutter 3.35+): the Preview CodeLens, Preview Widget commands and the Flutter Widget Preview window. Turning it off stops a running previewer.")]
         public bool WidgetPreview { get => settings.WidgetPreview; set => settings.WidgetPreview = value; }
@@ -74,6 +85,7 @@ namespace Vistudio.Dart
         {
             settings.Save();
             DartEnvironment.OnSettingsChanged();
+            EditorLanguages.OnSettingsChanged();
         }
 
         protected override void OnApply(PageApplyEventArgs e)

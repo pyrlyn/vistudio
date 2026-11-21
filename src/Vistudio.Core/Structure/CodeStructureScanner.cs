@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Vistudio.Core.CodeLens;
+using Vistudio.Core.Dart;
+using Vistudio.Core.Editor;
+using Vistudio.Core.Rust;
 using Token = Vistudio.Core.CodeLens.CodeDeclarationScanner.Token;
 using TokenKind = Vistudio.Core.CodeLens.CodeDeclarationScanner.TokenKind;
 
@@ -32,7 +35,7 @@ namespace Vistudio.Core.Structure
     }
 
     /// <summary>
-    /// Lexical block structure of Kotlin and Java sources for editor scopes (Sticky Scroll, structure guides): every
+    /// Lexical block structure of Kotlin, Java, Dart and Rust sources for editor scopes (Sticky Scroll, structure guides): every
     /// brace block that spans lines, with the statement header that owns it. A header may span lines
     /// (<c>fun f(\n  a: Int\n): Int {</c>) and starts at the declaration or keyword, not at the line with the brace.
     /// No compiler: the scanner tolerates broken code, and unmatched braces only drop their own block.
@@ -62,9 +65,37 @@ namespace Vistudio.Core.Structure
         public static IReadOnlyList<CodeBlock> Scan(string path, string text) =>
             Scan(text, path.EndsWith(".java", StringComparison.OrdinalIgnoreCase));
 
-        public static IReadOnlyList<CodeBlock> Scan(string text, bool java)
+        public static IReadOnlyList<CodeBlock> Scan(string text, bool java) => Scan(text, java ? EditorLanguage.Java : EditorLanguage.Kotlin);
+
+        /// <summary>
+        /// Kotlin, Java, Dart and Rust: the brace languages that share this header logic. Dart and Rust are scanned on
+        /// their masked text (comments and literals blanked by <see cref="DartSourceScanner.Mask"/> and
+        /// <see cref="RustSourceScanner.Mask"/>), with the offsets of the original text. Zig and WebAssembly text have
+        /// scanners of their own (<see cref="SourceStructure"/>).
+        /// </summary>
+        public static IReadOnlyList<CodeBlock> Scan(string text, EditorLanguage language)
         {
-            var tokens = CodeDeclarationScanner.Tokenize(text, java);
+            switch (language)
+            {
+                case EditorLanguage.Kotlin:
+                case EditorLanguage.Java:
+                    return Scan(text, text, language);
+                case EditorLanguage.Dart:
+                    // The mask keeps the quotes; without them the tokenizer sees no literal at all, which is what a
+                    // header needs (Dart headers do not end in a string).
+                    return Scan(DartSourceScanner.Mask(text).Replace('\'', ' ').Replace('"', ' '), text, language);
+                case EditorLanguage.Rust:
+                    return Scan(RustSourceScanner.Mask(text), text, language);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(language), language, "Use SourceStructure.Scan for " + language + ".");
+            }
+        }
+
+        private static IReadOnlyList<CodeBlock> Scan(string scanned, string text, EditorLanguage language)
+        {
+            // Kotlin ends statements at line breaks; Java, Dart and Rust at `;` and braces only.
+            var java = language != EditorLanguage.Kotlin;
+            var tokens = CodeDeclarationScanner.Tokenize(scanned, java);
             var lineStarts = new List<int> { 0 };
             for (var i = 0; i < text.Length; i++) if (text[i] == '\n') lineStarts.Add(i + 1);
 
@@ -76,15 +107,16 @@ namespace Vistudio.Core.Structure
                 if (token.Kind != TokenKind.Punctuation) continue;
                 if (token.Text == "{")
                 {
-                    var header = HeaderStart(tokens, i, java);
-                    var keyword = Keyword(tokens, header, i);
-                    // Kotlin expression assignments: `val x = when (y) {`, `val o = object : T {`.
-                    var assigned = keyword == "fun" ? -1 : AfterTopLevel(tokens, header, i, "=");
-                    if (assigned >= 0 && tokens[assigned].Kind == TokenKind.Identifier && tokens[assigned].Text is "if" or "when" or "try" or "object") keyword = tokens[assigned].Text;
                     CodeBlockKind? parentKind = null;
                     string? parentKeyword = null;
                     if (open.Count > 0) { var parent = open.Peek(); parentKind = parent.Kind; parentKeyword = parent.Keyword; }
-                    open.Push((i, header, Classify(tokens, header, i, keyword, parentKind, parentKeyword, java), keyword,
+                    // Rust match arms end at a comma (`A => 1,`); elsewhere commas are part of headers (`impl<A, B>`).
+                    var header = HeaderStart(tokens, i, java, language, commaEnds: language == EditorLanguage.Rust && parentKeyword == "match");
+                    var keyword = Keyword(tokens, header, i, language);
+                    // Expression assignments: Kotlin `val x = when (y) {`, Dart `final x = switch (y) {`, Rust `let x = match y {`.
+                    var assigned = keyword == "fun" ? -1 : AfterTopLevel(tokens, header, i, "=");
+                    if (assigned >= 0 && tokens[assigned].Kind == TokenKind.Identifier && AssignedKeywords(language).Contains(tokens[assigned].Text)) keyword = tokens[assigned].Text;
+                    open.Push((i, header, Classify(tokens, header, i, keyword, parentKind, parentKeyword, language), keyword,
                         Line(lineStarts, tokens[header].Offset), Line(lineStarts, token.Offset)));
                 }
                 else if (token.Text == "}" && open.Count > 0)
@@ -98,7 +130,10 @@ namespace Vistudio.Core.Structure
                     // (`run { items.map {`) would pin the same line twice.
                     if (SharesHeaderLines(open, block.HeaderLine, block.BraceLine)) continue;
                     var last = tokens[LastSignificant(tokens, block.Token - 1)];
-                    result.Add(new CodeBlock(block.Kind, tokens[block.HeaderToken].Offset, TokenEnd(text, last), tokens[block.Token].Offset, token.Offset, headerLine, endLine));
+                    var headerStart = tokens[block.HeaderToken].Offset;
+                    // A Rust loop label loses its quote in the mask (`'outer:` scans as `outer:`); the header shows it.
+                    if (language == EditorLanguage.Rust && headerStart > 0 && text[headerStart - 1] == '\'') headerStart--;
+                    result.Add(new CodeBlock(block.Kind, headerStart, TokenEnd(text, last), tokens[block.Token].Offset, token.Offset, headerLine, endLine));
                 }
             }
             result.Sort((a, b) => a.HeaderStart != b.HeaderStart ? a.HeaderStart.CompareTo(b.HeaderStart) : b.CloseBrace.CompareTo(a.CloseBrace));
@@ -113,7 +148,7 @@ namespace Vistudio.Core.Structure
         }
 
         /// <summary>Walks back from the opening brace to the first token of the statement that owns it.</summary>
-        private static int HeaderStart(List<Token> tokens, int brace, bool java)
+        private static int HeaderStart(List<Token> tokens, int brace, bool java, EditorLanguage language, bool commaEnds)
         {
             var start = brace;
             var j = brace - 1;
@@ -144,7 +179,7 @@ namespace Vistudio.Core.Structure
                         j = lambda - 1;
                         continue;
                     }
-                    if (token.Text == ";" || token.Text == "{" || token.Text == "}" || token.Text == "(" || token.Text == "[") break;
+                    if (token.Text == ";" || token.Text == "{" || token.Text == "}" || token.Text == "(" || token.Text == "[" || commaEnds && token.Text == ",") break;
                     if (token.Text == ")" || token.Text == "]")
                     {
                         var match = MatchBackward(tokens, j, token.Text == ")" ? "(" : "[", token.Text);
@@ -157,7 +192,7 @@ namespace Vistudio.Core.Structure
                 start = j;
                 j--;
             }
-            return SkipAnnotations(tokens, start, brace);
+            return language == EditorLanguage.Rust ? SkipAttributes(tokens, start, brace) : SkipAnnotations(tokens, start, brace);
         }
 
         private static int MatchBraceBackward(List<Token> tokens, int close)
@@ -220,28 +255,143 @@ namespace Vistudio.Core.Structure
             return i;
         }
 
-        /// <summary>The first word of the header after modifiers, or an empty string.</summary>
-        private static string Keyword(List<Token> tokens, int header, int brace)
+        /// <summary>Leading Rust attributes (<c>#[derive(Debug)]</c>, <c>#![allow(x)]</c>) are not part of the scope header.</summary>
+        private static int SkipAttributes(List<Token> tokens, int start, int brace)
         {
+            var i = start;
+            while (i < brace && tokens[i].Is("#"))
+            {
+                var open = NextSignificant(tokens, i + 1, brace);
+                if (open < brace && tokens[open].Is("!")) open = NextSignificant(tokens, open + 1, brace);
+                if (open >= brace || !tokens[open].Is("[")) break;
+                var depth = 0;
+                var after = open;
+                for (; after < brace; after++)
+                {
+                    if (tokens[after].Is("[")) depth++;
+                    else if (tokens[after].Is("]") && --depth == 0) { after++; break; }
+                }
+                after = NextSignificant(tokens, after, brace);
+                if (after >= brace) break;
+                i = after;
+            }
+            return i;
+        }
+
+        private static readonly HashSet<string> DartModifiers = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "abstract", "base", "final", "sealed", "static", "external", "late", "const", "covariant", "factory", "augment",
+        };
+
+        private static readonly HashSet<string> RustModifiers = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "pub", "async", "unsafe", "const", "extern", "default", "static",
+        };
+
+        private static HashSet<string> ModifiersOf(EditorLanguage language) =>
+            language == EditorLanguage.Dart ? DartModifiers : language == EditorLanguage.Rust ? RustModifiers : Modifiers;
+
+        private static readonly HashSet<string> KotlinAssigned = new HashSet<string>(StringComparer.Ordinal) { "if", "when", "try", "object" };
+        private static readonly HashSet<string> DartAssigned = new HashSet<string>(StringComparer.Ordinal) { "switch" };
+        private static readonly HashSet<string> RustAssigned = new HashSet<string>(StringComparer.Ordinal) { "if", "match", "loop", "unsafe" };
+        private static readonly HashSet<string> NoneAssigned = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Keywords that name the block when they follow a top-level <c>=</c> in the header.</summary>
+        private static HashSet<string> AssignedKeywords(EditorLanguage language) => language switch
+        {
+            EditorLanguage.Kotlin => KotlinAssigned,
+            EditorLanguage.Dart => DartAssigned,
+            EditorLanguage.Rust => RustAssigned,
+            _ => NoneAssigned,
+        };
+
+        /// <summary>The first word of the header after modifiers, or an empty string.</summary>
+        private static string Keyword(List<Token> tokens, int header, int brace, EditorLanguage language)
+        {
+            var modifiers = ModifiersOf(language);
             for (var i = header; i < brace; i++)
             {
                 var token = tokens[i];
                 if (token.Kind == TokenKind.Newline) continue;
                 if (token.Is("@") && i + 1 < brace && tokens[i + 1].Is("interface")) return "interface";
                 if (token.Kind != TokenKind.Identifier) return token.Kind == TokenKind.Punctuation ? token.Text : "";
-                var following = tokens[NextSignificant(tokens, i + 1, brace)];
+                var next = NextSignificant(tokens, i + 1, brace);
+                var following = tokens[next];
+                if (language == EditorLanguage.Rust)
+                {
+                    // `pub(crate) fn`, `extern "C" fn` / `extern "C" {`, and loop labels (`'outer: loop {`, masked to `outer:`).
+                    if (token.Text == "pub" && following.Is("(")) { i = MatchForward(tokens, next, brace, "(", ")"); continue; }
+                    if (token.Text == "extern" && following.Kind == TokenKind.Literal)
+                    {
+                        if (NextSignificant(tokens, next + 1, brace) >= brace) return "extern";
+                        i = next;
+                        continue;
+                    }
+                    if (following.Is(":") && next + 1 < brace && tokens[NextSignificant(tokens, next + 1, brace)].Kind == TokenKind.Identifier
+                        && tokens[NextSignificant(tokens, next + 1, brace)].Text is "loop" or "while" or "for") { i = next; continue; }
+                }
                 // Java `enum Name` and Kotlin `fun interface Name` name the kind themselves.
                 if (token.Text == "enum" && !following.Is("class")) return "enum";
                 if (token.Text == "fun" && following.Is("interface")) return "interface";
                 if ((token.Text == "return" || token.Text == "throw") && following.Kind == TokenKind.Identifier) continue;
-                if (Modifiers.Contains(token.Text) && i + 1 < brace && tokens[NextSignificant(tokens, i + 1, brace)].Kind == TokenKind.Identifier) continue;
+                if (modifiers.Contains(token.Text) && i + 1 < brace && following.Kind == TokenKind.Identifier) continue;
                 return token.Text;
             }
             return "";
         }
 
-        private static CodeBlockKind Classify(List<Token> tokens, int header, int brace, string keyword, CodeBlockKind? parent, string? parentKeyword, bool java)
+        /// <summary>The token index of the bracket closing the one at <paramref name="open"/>, or the token before <paramref name="limit"/>.</summary>
+        private static int MatchForward(List<Token> tokens, int open, int limit, string openText, string closeText)
         {
+            var depth = 0;
+            for (var i = open; i < limit; i++)
+            {
+                if (tokens[i].Is(openText)) depth++;
+                else if (tokens[i].Is(closeText) && --depth == 0) return i;
+            }
+            return limit - 1;
+        }
+
+        private static CodeBlockKind Classify(List<Token> tokens, int header, int brace, string keyword, CodeBlockKind? parent, string? parentKeyword, EditorLanguage language)
+        {
+            var java = language == EditorLanguage.Java;
+            if (language == EditorLanguage.Rust)
+            {
+                switch (keyword)
+                {
+                    case "struct": case "union": case "trait": case "impl": case "mod": case "extern":
+                        return CodeBlockKind.Type;
+                    case "fn": case "macro_rules":
+                        return CodeBlockKind.Member;
+                    case "match":
+                        return CodeBlockKind.Conditional;
+                    case "loop":
+                        return CodeBlockKind.Loop;
+                    case "unsafe":
+                        return CodeBlockKind.Statement;
+                }
+                if (parentKeyword == "match") return CodeBlockKind.Conditional;
+            }
+            if (language == EditorLanguage.Dart)
+            {
+                switch (keyword)
+                {
+                    case "mixin": case "extension":
+                        return CodeBlockKind.Type;
+                    case "on":
+                        return CodeBlockKind.Statement; // `on FormatException catch (e) {`
+                }
+                if (!IsControlKeyword(keyword) && tokens[header].Kind == TokenKind.Identifier)
+                {
+                    // Getters and setters: `int get length {`, `set value(int v) {`.
+                    if (HasWord(tokens, header, brace, "get") || HasWord(tokens, header, brace, "set")) return CodeBlockKind.Member;
+                    // Any other `name(...) {` is a declaration in Dart (functions, methods, constructors, local functions):
+                    // calls never take a block after their parentheses. An `=` before the parenthesis is an assignment.
+                    var paren = FirstTopLevel(tokens, header, brace, "(");
+                    var assignment = FirstTopLevel(tokens, header, brace, "=");
+                    if (paren >= 0 && (assignment < 0 || assignment > paren)) return CodeBlockKind.Member;
+                }
+            }
             switch (keyword)
             {
                 case "class": case "interface": case "object": case "enum": case "record":
@@ -285,6 +435,24 @@ namespace Vistudio.Core.Structure
             return next < to ? next : -1;
         }
 
+        private static bool IsControlKeyword(string keyword) =>
+            keyword is "if" or "else" or "for" or "while" or "do" or "switch" or "try" or "catch" or "finally" or "on" or "return" or "await";
+
+        /// <summary>Index of the first top-level <paramref name="text"/> (outside brackets), or -1.</summary>
+        private static int FirstTopLevel(List<Token> tokens, int from, int to, string text)
+        {
+            var depth = 0;
+            for (var i = from; i < to; i++)
+            {
+                var token = tokens[i];
+                if (token.Kind != TokenKind.Punctuation) continue;
+                if (depth == 0 && token.Text == text) return i;
+                if (token.Text == "(" || token.Text == "[") depth++;
+                else if ((token.Text == ")" || token.Text == "]") && depth > 0) depth--;
+            }
+            return -1;
+        }
+
         private static bool HasWord(List<Token> tokens, int from, int to, string word)
         {
             for (var i = from; i < to; i++) if (tokens[i].Kind == TokenKind.Identifier && tokens[i].Text == word) return true;
@@ -322,9 +490,10 @@ namespace Vistudio.Core.Structure
         {
             if (token.Kind != TokenKind.Literal) return token.Offset + token.Text.Length;
             var end = token.Offset + 1;
-            if (token.Text == "\"" || token.Text == "'")
+            // The original text decides: a masked Dart/Rust literal is the token "0" at the position of its quote.
+            if (text[token.Offset] == '"' || text[token.Offset] == '\'')
             {
-                var quote = token.Text[0];
+                var quote = text[token.Offset];
                 var raw = quote == '"' && token.Offset + 2 < text.Length && text[token.Offset + 1] == '"' && text[token.Offset + 2] == '"';
                 if (raw) { var close = text.IndexOf("\"\"\"", token.Offset + 3, StringComparison.Ordinal); return close < 0 ? text.Length : close + 3; }
                 while (end < text.Length && text[end] != quote && text[end] != '\n') end += text[end] == '\\' ? 2 : 1;

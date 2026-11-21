@@ -40,8 +40,11 @@ internal static class RustWasmTests
         var rust = RustSettings.Load(rustPath);
         check(rust.LanguageServerPath == @"C:\ra\rust-analyzer.exe" && rust.LanguageServerArguments == "--log-file \"C:\\a b.log\"" && !rust.InlayHints && !rust.CodeLens,
             "Rust settings round trip");
-        check(XDocument.Load(rustPath).Root!.Name.LocalName == "RustSettings" && XDocument.Load(rustPath).Root!.Elements().Count() == 4,
-            "Rust settings file holds exactly its four properties (the shared base adds none)");
+        // Four rust-analyzer/CodeLens properties plus the five IEditorSettings ones (T74); the shared base adds none.
+        var rustElements = XDocument.Load(rustPath).Root!.Elements().Select(e => e.Name.LocalName).ToArray();
+        check(XDocument.Load(rustPath).Root!.Name.LocalName == "RustSettings" && rustElements.Length == 9
+            && new[] { "RainbowBraces", "ScrollBarMode", "ScrollBarMapWidth", "ScrollBarMapPreview", "InlayHintsDisplay" }.All(rustElements.Contains),
+            "Rust settings file holds exactly its own and the editor properties (the shared base adds none): " + string.Join(", ", rustElements));
         check(RustSettings.FilePath.EndsWith(@"Vistudio\rust-settings.xml", StringComparison.OrdinalIgnoreCase) && WasmSettings.FilePath.EndsWith(@"Vistudio\wasm-settings.xml", StringComparison.OrdinalIgnoreCase),
             "Rust and WebAssembly settings live in their own files");
 

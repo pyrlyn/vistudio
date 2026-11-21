@@ -13,7 +13,7 @@ namespace Vistudio.Core.Zig
     /// Zig settings (Tools &gt; Options &gt; Zig). Stored next to, and independent of, the Kotlin settings so the two
     /// languages never overwrite each other.
     /// </summary>
-    public sealed class ZigSettings : StoredSettings<ZigSettings>
+    public sealed class ZigSettings : StoredSettings<ZigSettings>, Editor.IEditorSettings
     {
         /// <summary>Absolute path to zig.exe. Empty searches PATH.</summary>
         public string ZigPath { get; set; } = "";
@@ -36,6 +36,13 @@ namespace Vistudio.Core.Zig
         /// <summary>Show ZLS's own diagnostics as well. Off while ast-check runs, so parse errors are not reported twice.</summary>
         public bool LanguageServerDiagnostics { get; set; }
         public bool CodeLens { get; set; } = true;
+
+        // Editor display (IEditorSettings), the same settings Kotlin has under Tools > Options > Kotlin > Editor.
+        public bool RainbowBraces { get; set; } = true;
+        public ScrollBarMode ScrollBarMode { get; set; } = ScrollBarMode.Inherit;
+        public ScrollBarMapWidth ScrollBarMapWidth { get; set; } = ScrollBarMapWidth.Medium;
+        public bool ScrollBarMapPreview { get; set; } = true;
+        public InlayHintsDisplay InlayHintsDisplay { get; set; } = InlayHintsDisplay.Always;
 
         public ZigSettings() : base("zig-settings.xml", WorkspaceSettings.ZigPrefix) { }
 

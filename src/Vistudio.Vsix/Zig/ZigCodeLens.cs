@@ -118,6 +118,12 @@ namespace Vistudio.Zig
 
         internal static bool IsOurs(CodeElement element) => element.UniqueIdentifier?.StartsWith(Prefix, StringComparison.Ordinal) == true;
 
+        /// <summary>A top-level <c>main</c> (no container in its qualified name), the program's entry point.</summary>
+        internal static bool IsMain(CodeElement element) => IsMain(element.UniqueIdentifier);
+
+        internal static bool IsMain(string? identifier) =>
+            identifier != null && (identifier == Prefix + "main" || identifier.StartsWith(Prefix + "main#", StringComparison.Ordinal));
+
         /// <summary>The declaration under a tagged range, rescanned from the current text (offsets move with edits).</summary>
         internal static ZigDeclaration? Declaration(TextRange range)
         {
@@ -215,6 +221,50 @@ namespace Vistudio.Zig
             var path = LensPosition.Of(range).Path;
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
             ZigNavigation.Open(ServiceProvider.GlobalProvider, path, line, character);
+        }
+    }
+
+    [VisualStudioContribution]
+    internal sealed class ZigRunCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Zig run") { Priority = 100 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(ZigCodeElement.IsMain(codeElement) ? new ZigLaunchCodeLens(debug: false) : null);
+    }
+
+    [VisualStudioContribution]
+    internal sealed class ZigDebugCodeLensProvider : ExtensionPart, ICodeLensProvider
+    {
+        public TextViewExtensionConfiguration TextViewExtensionConfiguration => new() { AppliesTo = new[] { DocumentFilter.FromDocumentType("text") } };
+        public CodeLensProviderConfiguration CodeLensProviderConfiguration => new("Zig debug") { Priority = 101 };
+
+        public Task<CodeLens?> TryCreateCodeLensAsync(CodeElement codeElement, CodeElementContext codeElementContext, CancellationToken token) =>
+            Task.FromResult<CodeLens?>(ZigCodeElement.IsMain(codeElement) ? new ZigLaunchCodeLens(debug: true) : null);
+    }
+
+    /// <summary>
+    /// "Run" / "Debug" above a top-level Zig <c>main</c>, as for Rust (<see cref="LaunchCodeLens"/>): in a <c>.zigproj</c>
+    /// Visual Studio builds the project and starts <c>zig-out\bin\&lt;name&gt;.exe</c> under its native debugger (Zig on
+    /// Windows writes PDBs); elsewhere Tools &gt; Zig &gt; Run File (<c>zig run</c>) runs the file in the Zig Output pane.
+    /// </summary>
+    internal sealed class ZigLaunchCodeLens : LaunchCodeLens
+    {
+        internal ZigLaunchCodeLens(bool debug) : base(Core.Languages.LanguageCatalog.Zig, debug) { }
+
+        protected override string RunWithoutProjectDescription => "zig run in the Zig Output pane";
+
+        protected override async Task RunWithoutProjectAsync(string path, EnvDTE.DTE dte)
+        {
+            var model = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<SComponentModel, IComponentModel>();
+            var environment = model.GetService<ZigEnvironment>();
+            var build = model.GetService<ZigBuildService>();
+            await environment.ShowOutputAsync();
+            if (Debug) environment.Log("Debugging needs a Zig project (.zigproj) around " + path + "; running without the debugger.");
+            if (build.IsBusy) { environment.Log("A Zig command is already running; wait for it or use Tools > Zig > Cancel."); return; }
+            try { await build.RunFileAsync(path); } // the run's output and exit code go to the Zig pane
+            catch (Exception e) when (e is InvalidOperationException || e is System.IO.IOException || e is ArgumentException) { environment.Log("zig run: " + e.Message); }
         }
     }
 

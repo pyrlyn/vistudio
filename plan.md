@@ -42,7 +42,25 @@ Kotlin syntax highlighting, external LSP integration, Gradle builds, and JVM deb
 | T71 | in progress | P2 | 4 | 85% | Anthropic / Claude Opus 5.5 |
 | T72 | in progress | P1 | 4 | 80% | Anthropic / Claude Fable 5.2 |
 | T73 | in progress | P1 | 3 | 90% | Anthropic / Claude Fable 5.2 |
+| T74 | in progress | P1 | 4 | 80% | Anthropic / Claude Opus 5.5 |
 
+### T74. Feature parity across the eight languages
+
+Creator request (2026-11-21): a language × feature matrix; carry features that some languages have over to the others with the existing pattern, extracting a shared interface or base class first when only one language has it; explicit stubs with the reason where the platform cannot support a feature; tests for every language; the updated matrix attached.
+
+Done in code (details, before/after and every stub: [docs/feature-matrix.md](docs/feature-matrix.md)):
+
+1. Matrix as data: `Languages/LanguageFeatureMatrix` (Core), printed and checked by `Vistudio.Tests.exe --feature-matrix`.
+2. Shared editor settings: `Editor/IEditorSettings` (Core) implemented by the Kotlin, Dart, Zig, Rust and WebAssembly settings; VSIX `EditorLanguages` maps content types to languages and settings.
+3. Sticky Scroll: base `StructureTaggerProvider` and one `SourceStructureTagger` replace the JVM and Zig copies; Dart, Rust (`RustSourceScanner.Mask`) and WebAssembly text (`WatStructureScanner`) added.
+4. Rainbow braces: `BracePalette` and `RainbowBraces` (Core) and one `RainbowBraceTagger`; Java, Dart, Zig and Rust added; WAT stub (no braces); C/C++ left to Visual Studio.
+5. Scroll bar map and inlay hint display: Dart, Zig, Rust, WebAssembly (settings, options pages, workspace keys).
+6. CodeLens Run | Debug: base `LaunchCodeLens` taken out of the Rust lens; Zig added (`.zigproj` native debugger, otherwise `zig run`).
+7. Build errors of language projects in the Error List: `ToolDiagnosticParser` (Core), `LanguagesPackage.ReportBuildDiagnostics`.
+
+Checks (2026-11-21): `build.ps1` Release PASS (default run 1928 assertions, was 1602; VSIX and icon checks); `--structure` 352, `--feature-matrix` 225, `--packages none` 530, `--rust-wasm` 125, `--zig` 125, `--dart none` 96, `--codelens` 121, `--jvm-languages` 177, `--bazel` 120, `--mise` 74, `--diagnostics none` 46, `--hot-reload none` 55, all PASS; live zig, rust-analyzer, wat_server and mise parts skipped (not installed).
+
+Open: Visual Studio acceptance of all of the above (only unit checks ran), test lenses for Rust and Zig, Restart Language Server for Java/Rust/WebAssembly (needs a menu decision), Java errors in `.kotlinproj` builds, C/C++ CodeLens (T63).
 ### T73. Kotlin/JVM F5 within the Kotlin server's 30 s attach wait
 
 Requested (through the session that works on T72): make F5 reach the program when Gradle needs longer than the Kotlin server's debugger waits for the JVM, and stop leaving a JVM behind when the attach fails.

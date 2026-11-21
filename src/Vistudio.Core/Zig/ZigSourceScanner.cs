@@ -68,6 +68,10 @@ namespace Vistudio.Core.Zig
         private static readonly Regex Comment = new Regex(@"//[^\n]*", RegexOptions.CultureInvariant);
         private static readonly Regex Space = new Regex(@"\s+", RegexOptions.CultureInvariant);
 
+        /// <summary>Offsets of the real <c>{</c> and <c>}</c> tokens (not in comments, strings, characters or <c>\\</c> lines).</summary>
+        public static IReadOnlyList<int> BracePositions(string text) =>
+            Tokenize(text).Where(t => t.Kind == TokenKind.Punct && (t.Text == "{" || t.Text == "}")).Select(t => t.Start).ToList();
+
         public static ZigScanResult Scan(string text)
         {
             var tokens = Tokenize(text);

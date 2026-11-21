@@ -292,76 +292,28 @@ namespace Vistudio
     }
 
     /// <summary>
-    /// "Run" / "Debug" above a Rust <c>fn main</c>. In a <c>.rustproj</c> the project becomes the startup project and
-    /// Visual Studio's own Debug.Start / Debug.StartWithoutDebugging build and launch it (native engine, see
-    /// LanguageProjectConfig); elsewhere <c>cargo run</c> runs in the Rust Output pane, which cannot debug.
+    /// "Run" / "Debug" above a Rust <c>fn main</c>: the project's native debugger in a <c>.rustproj</c>, otherwise
+    /// <c>cargo run</c> in the Rust Output pane.
     /// </summary>
-    internal sealed class RustLaunchCodeLens : InvokableCodeLens
+    internal sealed class RustLaunchCodeLens : LaunchCodeLens
     {
         private static int cargoRunning;
-        private readonly bool debug;
 
-        internal RustLaunchCodeLens(bool debug) => this.debug = debug;
+        internal RustLaunchCodeLens(bool debug) : base(LanguageCatalog.Rust, debug) { }
 
-        public override void Dispose() { }
+        protected override string RunWithoutProjectDescription => "cargo run in the Rust Output pane";
 
-        public override async Task<CodeLensLabel> GetLabelAsync(CodeElementContext codeElementContext, CancellationToken token)
+        protected override async Task RunWithoutProjectAsync(string path, EnvDTE.DTE dte)
         {
-            var path = LspLensLanguage.PathOf(codeElementContext.Range.Document.Uri);
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
-            var project = ProjectFor(path);
-            var text = debug ? "Debug" : "Run";
-            var tooltip = project != null
-                ? (debug ? "Build and debug " : "Build and run ") + project.Name + " (Visual Studio " + (debug ? "Debug > Start Debugging" : "Debug > Start Without Debugging") + ")."
-                : debug ? "This file is not in a .rustproj: runs cargo run in the Rust pane without the debugger. Add a Rust project to debug."
-                : "cargo run in the Rust Output pane.";
-            return new CodeLensLabel { Text = text, Tooltip = tooltip };
-        }
-
-        public override async Task ExecuteAsync(CodeElementContext codeElementContext, IClientContext clientContext, CancellationToken cancelToken)
-        {
-            var path = LspLensLanguage.PathOf(codeElementContext.Range.Document.Uri);
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
-            var dte = await AsyncServiceProvider.GlobalProvider.GetServiceAsync<EnvDTE.DTE, EnvDTE.DTE>();
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
-            var project = ProjectFor(path);
-            if (project != null && await AsyncServiceProvider.GlobalProvider.GetServiceAsync(typeof(SVsSolutionBuildManager)) is IVsSolutionBuildManager builds)
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancelToken);
-                ErrorHandler.ThrowOnFailure(builds.set_StartupProject(project));
-                dte.ExecuteCommand(debug ? "Debug.Start" : "Debug.StartWithoutDebugging");
-                return;
-            }
-            dte.ExecuteCommand("File.SaveAll");
             var client = (RustLanguageClient)await LspLensLanguage.Rust.ClientAsync();
             // The program outlives the click: its run is not tied to the lens command's token.
             await CargoRunAsync(client.Output, path, CancellationToken.None);
         }
 
-        /// <summary>The open .rustproj whose folder contains <paramref name="path"/> (the innermost one), or null.</summary>
-        private static LanguageProjectNode? ProjectFor(string path)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            if (!(ServiceProvider.GlobalProvider.GetService(typeof(SVsShell)) is IVsShell shell)) return null;
-            var guid = new Guid(LanguagesPackage.PackageGuid);
-            // Loaded whenever a language project is open: it owns the project factory.
-            if (shell.IsPackageLoaded(ref guid, out var loaded) != VSConstants.S_OK || !(loaded is LanguagesPackage package)) return null;
-            return package.Projects.All
-                .Where(p => p.Language.Id == LanguageCatalog.Rust.Id && IsInside(path, p.Metadata.DirectoryPath))
-                .OrderByDescending(p => p.Metadata.DirectoryPath.Length)
-                .FirstOrDefault();
-        }
-
-        private static bool IsInside(string path, string folder)
-        {
-            var prefix = folder.TrimEnd('\\', '/') + "\\";
-            return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-        }
-
         private async Task CargoRunAsync(LanguageEnvironment output, string path, CancellationToken token)
         {
             await output.ShowOutputAsync();
-            if (debug) output.Log("Debugging needs a Rust project (.rustproj) around " + path + "; running without the debugger.");
+            if (Debug) output.Log("Debugging needs a Rust project (.rustproj) around " + path + "; running without the debugger.");
             var command = RustCargo.RunCommand(path);
             if (command == null) { output.Log("No Cargo.toml was found above " + path + "."); return; }
             var cargo = ToolLocator.Find(new[] { "cargo" }) ?? ToolLocator.Find(new[] { "cargo" }, LanguageProjectDefaults.InstallFolders(LanguageCatalog.Rust));

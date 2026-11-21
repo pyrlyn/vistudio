@@ -11,7 +11,7 @@ namespace Vistudio.Core
 
     public static class KotlinBraceScanner
     {
-        public const int ColorCount = 6;
+        public const int ColorCount = Editor.BracePalette.ColorCount;
         private sealed class Context
         {
             public char Kind;
@@ -22,17 +22,10 @@ namespace Vistudio.Core
 
         public static IReadOnlyList<ColoredBrace> Scan(string text)
         {
-            var result = new List<ColoredBrace>();
-            var colors = new Stack<int>();
+            var palette = new Editor.BracePalette();
             var contexts = new Stack<Context>();
             contexts.Push(new Context('c'));
-            int last = -1, next = 0;
-            void Open(int position)
-            {
-                while (next == last || (colors.Count > 0 && next == colors.Peek())) next = (next + 1) % ColorCount;
-                last = next; colors.Push(next);
-                result.Add(new ColoredBrace(position, next)); next = (next + 1) % ColorCount;
-            }
+            void Open(int position) => palette.Open(position);
             for (int i = 0; i < text.Length; i++)
             {
                 char ch = text[i], following = i + 1 < text.Length ? text[i + 1] : '\0';
@@ -53,7 +46,7 @@ namespace Vistudio.Core
                         while (end < text.Length && text[end] == '$') end++;
                         if (end < text.Length && text[end] == '{' && end - i >= context.Dollars)
                         {
-                            contexts.Push(new Context('c', colors.Count)); Open(end); i = end; continue;
+                            contexts.Push(new Context('c', palette.Depth)); Open(end); i = end; continue;
                         }
                         i = end - 1; continue;
                     }
@@ -83,13 +76,13 @@ namespace Vistudio.Core
                 }
                 else if (ch == '\'' || ch == '`') contexts.Push(new Context(ch));
                 else if (ch == '{') Open(i);
-                else if (ch == '}' && colors.Count > 0)
+                else if (ch == '}' && palette.Depth > 0)
                 {
-                    last = colors.Pop(); result.Add(new ColoredBrace(i, last));
-                    if (context.Depth >= 0 && colors.Count == context.Depth) contexts.Pop();
+                    palette.Close(i);
+                    if (context.Depth >= 0 && palette.Depth == context.Depth) contexts.Pop();
                 }
             }
-            return result;
+            return palette.Result;
         }
     }
 }

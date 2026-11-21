@@ -136,6 +136,19 @@ namespace Vistudio.Zig
         internal static void Open(IServiceProvider services, string path, int line, int column)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            DocumentNavigation.Open(services, path, line, column);
+        }
+    }
+}
+
+namespace Vistudio
+{
+    internal static class DocumentNavigation
+    {
+        /// <summary>Opens a file and puts the caret at a zero-based line and column, clamped to the current text.</summary>
+        internal static void Open(IServiceProvider services, string path, int line, int column)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
             if (!File.Exists(path)) throw new FileNotFoundException("The file no longer exists.", path);
             VsShellUtilities.OpenDocument(services, path, VSConstants.LOGVIEWID_Code, out _, out _, out var frame, out var view);
             if (view == null) throw new InvalidOperationException("No text editor is available for " + path);

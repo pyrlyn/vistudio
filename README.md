@@ -1,4 +1,4 @@
-# Vistudio: Kotlin for classic Visual Studio
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="brand/logo-dark.svg"><img src="brand/logo.svg" width="32" height="32" alt="" align="absmiddle"></picture> Vistudio: Kotlin for classic Visual Studio</h1>
 
 An installable C# VSIX for **Visual Studio 2026 18.12+ (x64 or ARM64)**, using the classic Visual Studio SDK. It provides Kotlin file icons and editor associations, syntax and brace coloring, LSP navigation, Gradle build/run/test workflows for Multiplatform targets, editor diagnostics, and Kotlin/JVM debugging, plus Zig and Dart/Flutter support.
 
